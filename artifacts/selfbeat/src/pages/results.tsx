@@ -4,7 +4,7 @@ import { getResult, ComparisonResult } from "@/lib/store";
 import { getSelfbeatComparison } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote } from "lucide-react";
+import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote, XCircle, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek" | "grok" | "mistral" | "llama" | "perplexity" | "cohere" | "qwen";
@@ -282,13 +282,32 @@ export default function Results() {
                   <p className="text-sm leading-relaxed text-foreground/90">{res.answer}</p>
                 </div>
 
+                {/* Issue 3: Generic/cached response badge */}
+                {res.isGeneric && (
+                  <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-400">
+                    <Database className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span className="text-[11px] font-semibold leading-snug">Response may be cached — not specific to this question</span>
+                  </div>
+                )}
+
                 {/* Round 2 Self-Criticism — always visible */}
                 <div className="rounded-xl p-3.5" style={{ border: `1px solid ${borderTint}`, backgroundColor: bgTint }}>
                   <div className="text-[10px] font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1.5" style={{ color: hexColor }}>
                     <MessageSquareQuote className="h-3 w-3 shrink-0" style={{ color: hexColor }} />
                     Round 2: Selfbeat Analysis
                   </div>
-                  <p className="text-sm leading-relaxed italic text-foreground/80">"{res.selfCriticism}"</p>
+                  {/* Issue 1: Declined badge replaces critique text */}
+                  {res.declined ? (
+                    <div className="flex items-start gap-2 mt-1">
+                      <XCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
+                      <div>
+                        <p className="text-sm font-semibold text-rose-400 leading-snug">This AI declined to self-evaluate on this question</p>
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">This is a finding, not an error — it tells you something important about how this model handles self-evaluation.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm leading-relaxed italic text-foreground/80">"{res.selfCriticism}"</p>
+                  )}
                 </div>
               </CardContent>
 

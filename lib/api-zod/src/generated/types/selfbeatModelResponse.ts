@@ -19,4 +19,6 @@ export interface SelfbeatModelResponse {
   selfAwarenessScore: number;
   status: SelfbeatModelResponseStatus;
   error?: string;
+  declined?: boolean;
+  isGeneric?: boolean;
 }

@@ -32,6 +32,8 @@ type ModelResponse = {
   selfAwarenessScore: number;
   status: "success" | "fallback";
   error?: string;
+  declined?: boolean;
+  isGeneric?: boolean;
 };
 
 const router: IRouter = Router();
@@ -264,6 +266,109 @@ const questionSeed = (question: string, salt: number): number => {
   return h / 0xffffffff;
 };
 
+// --- Issue 1: Refusal detection ---
+// Returns true when a model's critique shows it refused or broke character
+const detectRefusal = (text: string): boolean => {
+  if (!text || text.trim().length < 30) return true;
+  const lower = text.toLowerCase();
+  const refusalPatterns = [
+    /i (cannot|can't|won't|will not|am unable to|am not able to) (self.?evaluat|self.?criti|criti|evaluat|assess|rate|score|review)/,
+    /i (decline|refuse) to/,
+    /it (would be|is) (inappropriate|not appropriate|unethical) (for me )?to/,
+    /as an (ai|language model|llm).{0,60}(cannot|can't|won't|not able|unable)/,
+    /i (don't|do not) (feel comfortable|think it('s| is) (appropriate|right|proper)) to/,
+    /i (cannot|can't) (compare|judge|evaluate|critique) (myself|my own|other (models|ais|ai models))/,
+    /self.?criti(cism|cize|que).{0,80}(cannot|can't|won't|decline|refuse|inappropriate)/,
+    /i (prefer|choose|would rather) not to/,
+    /against my (guidelines|principles|values|training)/,
+  ];
+  return refusalPatterns.some((p) => p.test(lower));
+};
+
+// --- Issue 3: Generic response detection ---
+// Returns true when an answer doesn't address the specific question content
+const detectGenericResponse = (answer: string, question: string, status: "success" | "fallback"): boolean => {
+  // Fallback answers are always generic
+  if (status === "fallback") return true;
+
+  // Extract meaningful keywords from the question (3+ chars, skip stop words)
+  const stopWords = new Set(["what", "why", "how", "when", "where", "who", "which", "will", "does", "did", "can", "are", "the", "and", "for", "with", "that", "this", "from", "have", "has", "been", "its", "is"]);
+  const questionWords = question
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 4 && !stopWords.has(w));
+
+  if (questionWords.length === 0) return false;
+
+  const answerLower = answer.toLowerCase();
+  const matchCount = questionWords.filter((w) => answerLower.includes(w)).length;
+  // Flag as generic if fewer than 25% of question keywords appear in the answer
+  return matchCount / questionWords.length < 0.25;
+};
+
+// --- Issue 4: AI-generated agreement/disagreement ---
+async function generateVerdictInsights(
+  question: string,
+  answers: { displayName: string; answer: string }[],
+): Promise<{ agreementPoints: string[]; disagreementPoints: string[] }> {
+  const fallback = {
+    agreementPoints: [
+      "All models addressed the core question directly.",
+      "All models recognized that context changes the strongest answer.",
+      "All models included at least some limitation or caveat.",
+    ],
+    disagreementPoints: [
+      "The models differed on how much background context to include.",
+      "They weighed clarity, caution, and completeness differently.",
+    ],
+  };
+
+  try {
+    const { openai } = await import("@workspace/integrations-openai-ai-server");
+    const summary = answers
+      .map(({ displayName, answer }) => `${displayName}: ${answer.slice(0, 200)}`)
+      .join("\n\n");
+
+    const prompt = [
+      `Ten AI models answered this question: "${question}"`,
+      ``,
+      `Here are summaries of their answers:`,
+      summary,
+      ``,
+      `Based on the ACTUAL content of these answers, identify:`,
+      `1. Three specific points where the models genuinely agreed (reference actual content, not generic statements).`,
+      `2. Two or three specific points where they genuinely differed (reference actual differences in content, tone, or emphasis).`,
+      ``,
+      `Respond in this exact JSON format with no extra text:`,
+      `{"agreementPoints":["...", "...", "..."],"disagreementPoints":["...", "..."]}`,
+    ].join("\n");
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      max_completion_tokens: 400,
+      temperature: 0.3,
+    });
+
+    const raw = response.choices[0]?.message?.content?.trim() || "";
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return fallback;
+
+    const parsed = JSON.parse(jsonMatch[0]) as { agreementPoints?: unknown; disagreementPoints?: unknown };
+    const agreementPoints = Array.isArray(parsed.agreementPoints) && parsed.agreementPoints.length > 0
+      ? (parsed.agreementPoints as string[]).slice(0, 3)
+      : fallback.agreementPoints;
+    const disagreementPoints = Array.isArray(parsed.disagreementPoints) && parsed.disagreementPoints.length > 0
+      ? (parsed.disagreementPoints as string[]).slice(0, 3)
+      : fallback.disagreementPoints;
+
+    return { agreementPoints, disagreementPoints };
+  } catch {
+    return fallback;
+  }
+}
+
 async function createComparison(question: string, mode: "live" | "mock") {
   const isMedical = isMedicalQuestion(question);
 
@@ -332,6 +437,8 @@ async function createComparison(question: string, mode: "live" | "mock") {
           selfAwarenessScore,
           status,
           error,
+          declined: false,
+          isGeneric: true,
         } satisfies ModelResponse;
       }
 
@@ -368,17 +475,22 @@ async function createComparison(question: string, mode: "live" | "mock") {
           : clampScore(accuracyScore + (questionSeed(question, index + 20) * 1.4 - 0.7));
         const score = Math.round(((accuracyScore + selfAwarenessScore) / 2) * 10) / 10;
 
+        const critiqueText = critique || fallbackCriticism(model);
+        const declined = detectRefusal(critiqueText);
+        const isGenericAnswer = detectGenericResponse(answer, question, critique ? "success" : "fallback");
         return {
           model: model.key,
           displayName: model.displayName,
           color: model.color,
           answer,
-          selfCriticism: critique || fallbackCriticism(model),
+          selfCriticism: critiqueText,
           score,
           accuracyScore,
           selfAwarenessScore,
           status: critique ? ("success" as const) : ("fallback" as const),
           error: critique ? undefined : "Provider returned an empty critique.",
+          declined,
+          isGeneric: isGenericAnswer,
         } satisfies ModelResponse;
       } catch (critiqueError) {
         const accuracyScore = seededBase;
@@ -397,36 +509,32 @@ async function createComparison(question: string, mode: "live" | "mock") {
             critiqueError instanceof Error
               ? critiqueError.message
               : "Self-criticism failed.",
+          declined: false,
+          isGeneric: true,
         } satisfies ModelResponse;
       }
     }),
   );
 
-  const winner =
-    [...secondRound].sort(
-      (a, b) =>
-        b.accuracyScore +
-        b.selfAwarenessScore -
-        (a.accuracyScore + a.selfAwarenessScore),
-    )[0] ?? secondRound[0];
+  // Issue 2: Sort by `score` field — same field the frontend uses — so winner always matches
+  const winner = [...secondRound].sort((a, b) => b.score - a.score)[0] ?? secondRound[0];
+
+  // Issue 4: Generate agreement/disagreement from actual answer content
+  const answerPayload = secondRound
+    .filter((r) => !r.isGeneric)
+    .map((r) => ({ displayName: r.displayName, answer: r.answer }));
+  const insights = await generateVerdictInsights(question, answerPayload.length > 0 ? answerPayload : secondRound.map((r) => ({ displayName: r.displayName, answer: r.answer })));
 
   const verdictDetails = {
-    summary: `${winner.displayName} produced the strongest combined performance for this question.`,
-    bestAnswer: `${winner.displayName} gave the best answer because it balanced accuracy, clarity, and useful caveats.`,
+    summary: `${winner.displayName} produced the strongest combined performance for this question, with the highest score across accuracy and self-awareness.`,
+    bestAnswer: `${winner.displayName} gave the best answer because it earned the highest combined score.`,
     clearestAnswer:
       secondRound.find((response) => response.model === "gemini")?.displayName ??
       winner.displayName,
-    agreementPoints: [
-      "All models addressed the core question directly.",
-      "All models recognized that context changes the strongest answer.",
-      "All models included at least some limitation or caveat.",
-    ],
-    disagreementPoints: [
-      "The models differed on how much background context to include.",
-      "They weighed clarity, caution, and completeness differently.",
-    ],
+    agreementPoints: insights.agreementPoints,
+    disagreementPoints: insights.disagreementPoints,
     overallWinner: winner.displayName,
-    explanation: `${winner.displayName} wins because its answer and self-criticism had the highest combined accuracy and self-awareness scores.`,
+    explanation: `${winner.displayName} wins with a score of ${winner.score}/10 — the highest across all 10 models for this question.`,
   };
 
   const verdict = `Accuracy scores: ${secondRound
