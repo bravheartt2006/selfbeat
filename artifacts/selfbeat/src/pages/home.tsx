@@ -11,6 +11,7 @@ export default function Home() {
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const transcriptRef = useRef("");
 
   const exampleQuestions = [
     "What causes high blood pressure?",
@@ -37,6 +38,7 @@ export default function Home() {
     }
 
     setVoiceError("");
+    transcriptRef.current = "";
     const recognition = new SR();
     recognition.continuous = false;
     recognition.interimResults = true;
@@ -47,9 +49,16 @@ export default function Home() {
         .map((r) => r[0].transcript)
         .join("");
       setQuery(transcript);
+      transcriptRef.current = transcript;
     };
 
-    recognition.onend = () => setIsListening(false);
+    recognition.onend = () => {
+      setIsListening(false);
+      const q = transcriptRef.current.trim();
+      if (q) {
+        setLocation(`/stream?q=${encodeURIComponent(q)}`);
+      }
+    };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       setIsListening(false);
@@ -107,7 +116,7 @@ export default function Home() {
               id="question-input"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ask anything. Watch AI judge itself."
+              placeholder="Ask anything — press Enter to submit"
               className="w-full h-16 pl-6 pr-4 text-lg rounded-xl border-border/50 bg-background/80 backdrop-blur-sm focus-visible:ring-primary/50"
               aria-label="Type or speak your question here"
               aria-describedby={voiceSupported ? "voice-hint" : undefined}
@@ -157,7 +166,12 @@ export default function Home() {
           )}
           {!isListening && !voiceError && voiceSupported && (
             <p id="voice-hint" className="text-xs text-muted-foreground/60">
-              Press the microphone to speak your question instead of typing
+              Type and press Enter, or tap the microphone to speak — it submits automatically
+            </p>
+          )}
+          {!isListening && !voiceError && !voiceSupported && (
+            <p className="text-xs text-muted-foreground/60">
+              Type your question and press Enter to submit
             </p>
           )}
         </div>
