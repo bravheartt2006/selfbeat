@@ -9,13 +9,16 @@ import {
 } from "@workspace/api-zod";
 import { db, selfbeatComparisonsTable } from "@workspace/db";
 
-type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek";
+type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek" | "grok" | "mistral" | "llama" | "perplexity" | "cohere" | "qwen";
+
+type ModelProvider = "openai" | "anthropic" | "gemini" | "openrouter";
 
 type ModelInfo = {
   key: ModelKey;
   displayName: string;
   color: string;
-  provider: string;
+  provider: ModelProvider;
+  routerModel: string;
 };
 
 type ModelResponse = {
@@ -34,30 +37,16 @@ type ModelResponse = {
 const router: IRouter = Router();
 
 const models: ModelInfo[] = [
-  {
-    key: "chatgpt",
-    displayName: "ChatGPT",
-    color: "#10A37F",
-    provider: "OpenAI",
-  },
-  {
-    key: "claude",
-    displayName: "Claude",
-    color: "#CC785C",
-    provider: "Anthropic",
-  },
-  {
-    key: "gemini",
-    displayName: "Gemini",
-    color: "#4285F4",
-    provider: "Google",
-  },
-  {
-    key: "deepseek",
-    displayName: "DeepSeek",
-    color: "#7B68EE",
-    provider: "OpenRouter",
-  },
+  { key: "chatgpt",    displayName: "ChatGPT",          color: "#10A37F", provider: "openai",     routerModel: "gpt-4o-mini" },
+  { key: "claude",     displayName: "Claude",            color: "#CC785C", provider: "anthropic",  routerModel: "claude-haiku-4-5" },
+  { key: "gemini",     displayName: "Gemini",            color: "#4285F4", provider: "gemini",     routerModel: "gemini-2.0-flash" },
+  { key: "deepseek",   displayName: "DeepSeek",          color: "#7B68EE", provider: "openrouter", routerModel: "deepseek/deepseek-chat" },
+  { key: "grok",       displayName: "Grok",              color: "#F97316", provider: "openrouter", routerModel: "x-ai/grok-2" },
+  { key: "mistral",    displayName: "Mistral Large",     color: "#EF4444", provider: "openrouter", routerModel: "mistralai/mistral-large" },
+  { key: "llama",      displayName: "Llama 3.3 (Meta)",  color: "#1877F2", provider: "openrouter", routerModel: "meta-llama/llama-3.3-70b-instruct" },
+  { key: "perplexity", displayName: "Perplexity Sonar",  color: "#06B6D4", provider: "openrouter", routerModel: "perplexity/sonar" },
+  { key: "cohere",     displayName: "Cohere Command R+", color: "#22C55E", provider: "openrouter", routerModel: "cohere/command-r-plus" },
+  { key: "qwen",       displayName: "Qwen 2.5 (Alibaba)",color: "#A855F7", provider: "openrouter", routerModel: "qwen/qwen-2.5-72b-instruct" },
 ];
 
 const medicalKeywords = [
@@ -131,11 +120,38 @@ const fallbackAnswer = (model: ModelInfo, question: string) => {
     return `On the question of "${q}": here are the key facts. The most current and widely verified information points to a clear answer for the general case. Where local variation applies — for example by country, region, or individual circumstance — the answer may differ. The most reliable approach is to check a primary authoritative source such as a government body, peer-reviewed study, or official record for the most precise detail. I have summarized the consensus view, but edge cases exist and should be explored if precision is critical.`;
   }
 
+  if (model.key === "grok") {
+    return `On "${q}": I cut straight to what matters. The most defensible answer is grounded in the strongest available evidence, not in hedged non-answers. I will tell you what I actually think is true, flag where uncertainty genuinely exists, and skip the filler that other models pad their responses with. The most interesting part of this question is what it assumes — and whether those assumptions hold.`;
+  }
+
+  if (model.key === "mistral") {
+    return `For "${q}": my approach prioritizes precision and efficiency. The essential facts are these: the question has a well-established answer at the population level, but meaningful variation exists at the individual or contextual level. I present the core finding first, then the qualifications, so you can stop reading when you have enough for your purpose. European and international sources are often underrepresented in English-language answers — I try to correct for that.`;
+  }
+
+  if (model.key === "llama") {
+    return `Addressing "${q}": I aim to give a grounded, community-informed perspective. The open-source and academic consensus on this topic is fairly consistent. I draw on a broad set of training sources to represent diverse viewpoints, which sometimes means my answer reflects more variation in perspectives than a model trained primarily on mainstream Western sources. The core answer is clear; the interesting debates live at the edges of that consensus.`;
+  }
+
+  if (model.key === "perplexity") {
+    return `On "${q}": I have access to real-time web search, which means I can ground this answer in what is currently verifiable rather than relying solely on training data. The short answer is supported by multiple current sources. I will note where the evidence base is strong versus where reasonable people still disagree based on the available literature. Recency matters here — answers to this type of question can evolve as new data emerges.`;
+  }
+
+  if (model.key === "cohere") {
+    return `On the topic of "${q}": I approach this from an enterprise-grade perspective, which means I weight reliability and verifiability highly. The most defensible position is supported by the preponderance of credible sources. I aim to be calibrated — meaning I express confidence proportional to the strength of evidence — and I flag when a question would benefit from consulting a domain expert rather than an AI model alone.`;
+  }
+
+  if (model.key === "qwen") {
+    return `For "${q}": I draw on a broad multilingual training corpus that includes significant coverage of Asian academic and professional sources, which sometimes yields a different emphasis than Western-centric models. The core factual answer is consistent across sources. Where cultural or regional context changes the answer, I try to make that explicit rather than defaulting to a single geopolitical framing. The question is well-formed and has a clear answer at the general level.`;
+  }
+
   return `Analyzing "${q}" analytically: the question can be broken into its core claim, its underlying assumptions, and the evidence that supports or contradicts each. The logical structure of the strongest answer involves acknowledging what is definitively known, what is probabilistic, and what remains genuinely uncertain. From a reasoning standpoint, the most defensible position is the one that is falsifiable and internally consistent.`;
 };
 
-const fallbackCriticism = (model: ModelInfo) =>
-  `I gave a usable answer, but I may have stayed too broad because the live provider was unavailable. I covered the main structure, but I did not fully test my claims against the other models. Claude usually handled nuance best, Gemini was clearest for the public, and ChatGPT was strongest at structured caveats. Honest score: 7.2/10.`;
+const fallbackCriticism = (model: ModelInfo) => {
+  const others = "Claude, ChatGPT, Gemini, Grok, Mistral, Llama, Perplexity, Cohere, and Qwen"
+    .replace(new RegExp(`${model.displayName},?\\s?`), "").trim();
+  return `I gave a usable answer, but I may have stayed too broad because the live provider was unavailable. I covered the main structure but did not fully benchmark my claims against the other models (${others}). Honest score: 7.0/10.`;
+};
 
 async function generatePhysicianNote(question: string, answers: string): Promise<string | undefined> {
   try {
@@ -181,21 +197,21 @@ async function withRetry<T>(operation: () => Promise<T>) {
 
 async function askModel(model: ModelInfo, prompt: string) {
   return withRetry(async () => {
-    if (model.key === "chatgpt") {
+    if (model.provider === "openai") {
       const { openai } = await import("@workspace/integrations-openai-ai-server");
       const response = await openai.chat.completions.create({
-        model: "gpt-5-mini",
+        model: model.routerModel,
         messages: [{ role: "user", content: prompt }],
         max_completion_tokens: 900,
       });
       return response.choices[0]?.message?.content?.trim() || "";
     }
 
-    if (model.key === "claude") {
+    if (model.provider === "anthropic") {
       const { anthropic } = await import("@workspace/integrations-anthropic-ai");
       const response = await anthropic.messages.create({
-        model: "claude-haiku-4-5",
-        max_tokens: 8192,
+        model: model.routerModel,
+        max_tokens: 1024,
         messages: [{ role: "user", content: prompt }],
       });
       return response.content
@@ -204,18 +220,19 @@ async function askModel(model: ModelInfo, prompt: string) {
         .trim();
     }
 
-    if (model.key === "gemini") {
+    if (model.provider === "gemini") {
       const { ai } = await import("@workspace/integrations-gemini-ai");
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: model.routerModel,
         contents: prompt,
       });
       return response.text?.trim() || "";
     }
 
+    // All OpenRouter models (DeepSeek, Grok, Mistral, Llama, Perplexity, Cohere, Qwen)
     const { openrouter } = await import("@workspace/integrations-openrouter-ai");
     const response = await openrouter.chat.completions.create({
-      model: "deepseek/deepseek-chat",
+      model: model.routerModel,
       messages: [{ role: "user", content: prompt }],
       max_tokens: 900,
     });

@@ -14,4 +14,10 @@ export const SelfbeatModelKey = {
   claude: "claude",
   gemini: "gemini",
   deepseek: "deepseek",
+  grok: "grok",
+  mistral: "mistral",
+  llama: "llama",
+  perplexity: "perplexity",
+  cohere: "cohere",
+  qwen: "qwen",
 } as const;

@@ -7,21 +7,39 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const MODEL_COLORS = {
-  chatgpt: { text: "text-[hsl(165_82%_35%)]", bg: "bg-[hsl(165_82%_35%)]/10", border: "border-[hsl(165_82%_35%)]/20", icon: "bg-[hsl(165_82%_35%)]", name: "ChatGPT" },
-  claude: { text: "text-[hsl(15_54%_58%)]", bg: "bg-[hsl(15_54%_58%)]/10", border: "border-[hsl(15_54%_58%)]/20", icon: "bg-[hsl(15_54%_58%)]", name: "Claude" },
-  gemini: { text: "text-[hsl(217_89%_61%)]", bg: "bg-[hsl(217_89%_61%)]/10", border: "border-[hsl(217_89%_61%)]/20", icon: "bg-[hsl(217_89%_61%)]", name: "Gemini" },
-  deepseek: { text: "text-[hsl(248_80%_67%)]", bg: "bg-[hsl(248_80%_67%)]/10", border: "border-[hsl(248_80%_67%)]/20", icon: "bg-[hsl(248_80%_67%)]", name: "DeepSeek" }
+type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek" | "grok" | "mistral" | "llama" | "perplexity" | "cohere" | "qwen";
+
+const MODEL_META: Record<ModelKey, { name: string; color: string }> = {
+  chatgpt:    { name: "ChatGPT",           color: "#10A37F" },
+  claude:     { name: "Claude",            color: "#CC785C" },
+  gemini:     { name: "Gemini",            color: "#4285F4" },
+  deepseek:   { name: "DeepSeek",          color: "#7B68EE" },
+  grok:       { name: "Grok",              color: "#F97316" },
+  mistral:    { name: "Mistral Large",     color: "#EF4444" },
+  llama:      { name: "Llama 3.3 (Meta)",  color: "#1877F2" },
+  perplexity: { name: "Perplexity Sonar",  color: "#06B6D4" },
+  cohere:     { name: "Cohere Command R+", color: "#22C55E" },
+  qwen:       { name: "Qwen 2.5",          color: "#A855F7" },
 };
 
+function getModelMeta(key: string) {
+  return MODEL_META[key as ModelKey] ?? { name: key, color: "#888888" };
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 function ScoreBar({ score, color }: { score: number; color: string }) {
-  const pct = Math.round((score / 10) * 100);
   return (
     <div className="flex items-center gap-2 mt-1">
       <div className="flex-1 h-1.5 rounded-full bg-border/40 overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${pct}%`, backgroundColor: color }}
+          style={{ width: `${(score / 10) * 100}%`, backgroundColor: color }}
         />
       </div>
       <span className="text-xs font-mono text-muted-foreground w-8 text-right">{score.toFixed(1)}</span>
@@ -38,27 +56,20 @@ export default function Results() {
 
   useEffect(() => {
     let active = true;
-
     if (id) {
       getSelfbeatComparison(id)
-        .then((data) => {
-          if (active) setResult(data);
-        })
+        .then((data) => { if (active) setResult(data); })
         .catch(() => {
           const data = getResult(id);
           if (data && active) {
             setResult(data);
-            setLoadError("Loaded from local fallback cache because the server result was not available.");
+            setLoadError("Loaded from local cache — server result was not available.");
             return;
           }
-
           setLocation("/");
         });
     }
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [id, setLocation]);
 
   if (!result) {
@@ -74,27 +85,19 @@ export default function Results() {
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast({
-      title: "Copied to clipboard",
-      description: "Response text copied successfully.",
-      duration: 2000
-    });
+    toast({ title: "Copied to clipboard", description: "Response text copied.", duration: 2000 });
   };
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
-    toast({
-      title: "Link copied!",
-      description: "Share this comparison with others.",
-      duration: 2000
-    });
+    toast({ title: "Link copied!", description: "Share this comparison with others.", duration: 2000 });
   };
 
   const sortedResponses = [...result.responses].sort((a, b) => b.score - a.score);
   const winner = sortedResponses[0];
 
   return (
-    <div className="container py-8 max-w-7xl animate-in fade-in duration-500">
+    <div className="container py-8 max-w-[1400px] animate-in fade-in duration-500">
 
       {/* Header */}
       <div className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-border/40 pb-6">
@@ -104,7 +107,9 @@ export default function Results() {
             <span className="w-1 h-1 rounded-full bg-border" />
             <span>{new Date(result.timestamp).toLocaleDateString()}</span>
             <span className="w-1 h-1 rounded-full bg-border" />
-            <span>{result.source === "live" ? "Live AI" : result.source === "mixed" ? "Mixed live and fallback" : "Mock result"}</span>
+            <span>{result.source === "live" ? "Live AI" : result.source === "mixed" ? "Mixed" : "Mock"}</span>
+            <span className="w-1 h-1 rounded-full bg-border" />
+            <span>{result.responses.length} models</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-serif font-bold text-foreground leading-tight">
             "{result.question}"
@@ -134,9 +139,7 @@ export default function Results() {
               <h3 className="font-serif font-bold text-lg text-amber-400 mb-2 flex items-center gap-2">
                 Physician Perspective — AI Generated <AlertTriangle className="h-4 w-4" />
               </h3>
-              <p className="text-foreground/80 leading-relaxed">
-                {result.physicianNote}
-              </p>
+              <p className="text-foreground/80 leading-relaxed">{result.physicianNote}</p>
             </div>
           </div>
         </div>
@@ -157,31 +160,28 @@ export default function Results() {
             </p>
             {result.verdictDetails && (
               <div className="pt-4 border-t border-border/40 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {/* Score comparison */}
                 <div>
-                  <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Score Comparison</div>
-                  <div className="space-y-3">
-                    {sortedResponses.map((res) => {
-                      const styling = MODEL_COLORS[res.model];
+                  <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Score Ranking</div>
+                  <div className="space-y-2.5">
+                    {sortedResponses.map((res, i) => {
+                      const meta = getModelMeta(res.model);
                       return (
-                        <div key={res.model}>
-                          <div className="flex justify-between items-center">
-                            <span className={`text-sm font-semibold ${styling.text}`}>{res.displayName || styling.name}</span>
+                        <div key={res.model} className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono text-muted-foreground w-4 shrink-0">#{i + 1}</span>
+                          <span className="text-xs font-semibold w-28 shrink-0 truncate" style={{ color: meta.color }}>
+                            {res.displayName || meta.name}
+                          </span>
+                          <div className="flex-1 h-1.5 rounded-full bg-border/40 overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${(res.score / 10) * 100}%`, backgroundColor: meta.color }} />
                           </div>
-                          <div className="mt-0.5">
-                            <div className="flex items-center gap-1 mb-0.5">
-                              <span className="text-[10px] text-muted-foreground w-24">Accuracy</span>
-                              <ScoreBar score={res.accuracyScore} color={styling.icon.replace("bg-[", "").replace("]", "")} />
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] text-muted-foreground w-24">Self-Awareness</span>
-                              <ScoreBar score={res.selfAwarenessScore} color={styling.icon.replace("bg-[", "").replace("]", "")} />
-                            </div>
-                          </div>
+                          <span className="text-[10px] font-mono text-muted-foreground w-7 text-right shrink-0">{res.score.toFixed(1)}</span>
                         </div>
                       );
                     })}
                   </div>
                 </div>
+                {/* Agreement / Disagreement */}
                 <div className="space-y-4">
                   {result.verdictDetails.agreementPoints?.length > 0 && (
                     <div>
@@ -189,8 +189,7 @@ export default function Results() {
                       <ul className="space-y-1">
                         {result.verdictDetails.agreementPoints.map((pt, i) => (
                           <li key={i} className="text-sm text-foreground/70 flex items-start gap-2">
-                            <span className="text-emerald-500 mt-0.5">+</span>
-                            <span>{pt}</span>
+                            <span className="text-emerald-500 mt-0.5 shrink-0">+</span><span>{pt}</span>
                           </li>
                         ))}
                       </ul>
@@ -202,8 +201,7 @@ export default function Results() {
                       <ul className="space-y-1">
                         {result.verdictDetails.disagreementPoints.map((pt, i) => (
                           <li key={i} className="text-sm text-foreground/70 flex items-start gap-2">
-                            <span className="text-amber-500 mt-0.5">~</span>
-                            <span>{pt}</span>
+                            <span className="text-amber-500 mt-0.5 shrink-0">~</span><span>{pt}</span>
                           </li>
                         ))}
                       </ul>
@@ -212,7 +210,7 @@ export default function Results() {
                   {winner && (
                     <div className="pt-3 border-t border-border/40">
                       <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Overall Winner</div>
-                      <div className={`text-base font-bold ${MODEL_COLORS[winner.model]?.text}`}>
+                      <div className="text-base font-bold" style={{ color: getModelMeta(winner.model).color }}>
                         {winner.displayName || winner.model}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">{result.verdictDetails.explanation}</p>
@@ -225,31 +223,38 @@ export default function Results() {
         </Card>
       </div>
 
-      {/* Response Cards */}
-      <div className="grid md:grid-cols-2 gap-6 mb-12">
-        {sortedResponses.map((res) => {
-          const styling = MODEL_COLORS[res.model];
-          const hexColor = res.color;
+      {/* Model Cards — responsive grid: 1 col mobile, 2 col md, 3 col xl */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-12">
+        {sortedResponses.map((res, rank) => {
+          const meta = getModelMeta(res.model);
+          const hexColor = res.color || meta.color;
+          const bgTint = hexToRgba(hexColor, 0.07);
+          const borderTint = hexToRgba(hexColor, 0.2);
 
           return (
-            <Card key={res.model} className="flex flex-col h-full border-border/40 bg-card/40 hover:bg-card/60 transition-colors">
+            <Card
+              key={res.model}
+              className="flex flex-col h-full bg-card/40 hover:bg-card/60 transition-colors"
+              style={{ borderColor: borderTint }}
+            >
               {/* Card Header */}
-              <CardHeader className={`border-b ${styling.border} bg-background/50 pb-4`}>
+              <CardHeader className="pb-3" style={{ borderBottom: `1px solid ${borderTint}`, background: `${bgTint}` }}>
                 <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${styling.icon} shrink-0`} />
-                    <CardTitle className={`font-serif text-xl ${styling.text}`}>
-                      {res.displayName || styling.name}
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: hexColor }} />
+                    <CardTitle className="font-serif text-base leading-tight" style={{ color: hexColor }}>
+                      {res.displayName || meta.name}
                     </CardTitle>
+                    {rank === 0 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">WINNER</span>
+                    )}
                   </div>
-                  <div className="text-right shrink-0 ml-3">
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-0.5">Honest Score</div>
-                    <div className={`font-mono text-2xl font-bold leading-none ${styling.text}`}>{res.score.toFixed(1)}</div>
-                    <div className="text-[10px] text-muted-foreground">/10</div>
+                  <div className="text-right shrink-0 ml-2">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Score</div>
+                    <div className="font-mono text-xl font-bold leading-none" style={{ color: hexColor }}>{res.score.toFixed(1)}</div>
                   </div>
                 </div>
-                {/* Mini score bars in header */}
-                <div className="mt-3 space-y-1.5">
+                <div className="mt-2.5 space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] text-muted-foreground w-20 shrink-0">Accuracy</span>
                     <div className="flex-1 h-1 rounded-full bg-border/40 overflow-hidden">
@@ -267,39 +272,35 @@ export default function Results() {
                 </div>
               </CardHeader>
 
-              <CardContent className="pt-5 flex-1 space-y-5">
+              <CardContent className="pt-4 flex-1 space-y-4">
                 {/* Round 1 Answer */}
                 <div>
-                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                    <span className={`inline-block w-4 h-4 rounded-full text-center leading-4 text-[9px] font-bold text-background ${styling.icon}`}>1</span>
+                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold text-background shrink-0" style={{ backgroundColor: hexColor }}>1</span>
                     Round 1: Initial Answer
                   </div>
-                  <p className="text-sm leading-relaxed text-foreground/90">
-                    {res.answer}
-                  </p>
+                  <p className="text-sm leading-relaxed text-foreground/90">{res.answer}</p>
                 </div>
 
                 {/* Round 2 Self-Criticism — always visible */}
-                <div className={`rounded-xl p-4 border ${styling.border} ${styling.bg}`}>
-                  <div className="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5 ${styling.text}">
-                    <MessageSquareQuote className={`h-3.5 w-3.5 ${styling.text}`} />
-                    <span className={styling.text}>Round 2: Selfbeat Analysis</span>
+                <div className="rounded-xl p-3.5" style={{ border: `1px solid ${borderTint}`, backgroundColor: bgTint }}>
+                  <div className="text-[10px] font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1.5" style={{ color: hexColor }}>
+                    <MessageSquareQuote className="h-3 w-3 shrink-0" style={{ color: hexColor }} />
+                    Round 2: Selfbeat Analysis
                   </div>
-                  <p className="text-sm leading-relaxed italic text-foreground/80">
-                    "{res.selfCriticism}"
-                  </p>
+                  <p className="text-sm leading-relaxed italic text-foreground/80">"{res.selfCriticism}"</p>
                 </div>
               </CardContent>
 
-              <CardFooter className="pt-4 border-t border-border/40 justify-end">
+              <CardFooter className="pt-3 border-t border-border/30 justify-end">
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleCopy(`Prompt: ${result.question}\n\n${res.displayName || styling.name} Answer:\n${res.answer}\n\nSelf-Critique:\n${res.selfCriticism}`)}
+                  onClick={() => handleCopy(`Prompt: ${result.question}\n\n${res.displayName || meta.name} Answer:\n${res.answer}\n\nSelf-Critique:\n${res.selfCriticism}`)}
                   className="text-xs text-muted-foreground hover:text-foreground"
                 >
                   <Copy className="h-3 w-3 mr-2" />
-                  Copy Output
+                  Copy
                 </Button>
               </CardFooter>
             </Card>

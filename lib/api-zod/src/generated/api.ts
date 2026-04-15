@@ -35,7 +35,7 @@ export const CreateSelfbeatComparisonResponse = zod.object({
   timestamp: zod.number(),
   responses: zod.array(
     zod.object({
-      model: zod.enum(["chatgpt", "claude", "gemini", "deepseek"]),
+      model: zod.enum(["chatgpt", "claude", "gemini", "deepseek", "grok", "mistral", "llama", "perplexity", "cohere", "qwen"]),
       displayName: zod.string(),
       color: zod.string(),
       answer: zod.string(),
@@ -63,7 +63,7 @@ export const CreateSelfbeatComparisonResponse = zod.object({
   cached: zod.boolean(),
   providerStatuses: zod.array(
     zod.object({
-      model: zod.enum(["chatgpt", "claude", "gemini", "deepseek"]),
+      model: zod.enum(["chatgpt", "claude", "gemini", "deepseek", "grok", "mistral", "llama", "perplexity", "cohere", "qwen"]),
       provider: zod.string(),
       status: zod.enum(["live", "fallback"]),
       message: zod.string(),
@@ -84,7 +84,7 @@ export const GetSelfbeatComparisonResponse = zod.object({
   timestamp: zod.number(),
   responses: zod.array(
     zod.object({
-      model: zod.enum(["chatgpt", "claude", "gemini", "deepseek"]),
+      model: zod.enum(["chatgpt", "claude", "gemini", "deepseek", "grok", "mistral", "llama", "perplexity", "cohere", "qwen"]),
       displayName: zod.string(),
       color: zod.string(),
       answer: zod.string(),
@@ -112,7 +112,7 @@ export const GetSelfbeatComparisonResponse = zod.object({
   cached: zod.boolean(),
   providerStatuses: zod.array(
     zod.object({
-      model: zod.enum(["chatgpt", "claude", "gemini", "deepseek"]),
+      model: zod.enum(["chatgpt", "claude", "gemini", "deepseek", "grok", "mistral", "llama", "perplexity", "cohere", "qwen"]),
       provider: zod.string(),
       status: zod.enum(["live", "fallback"]),
       message: zod.string(),
