@@ -150,7 +150,7 @@ export default function Home() {
               id="question-input"
               value={query}
               onChange={handleQueryChange}
-              placeholder="Ask anything — press Enter to submit"
+              placeholder="Ask anything. Watch AI judge itself."
               className="w-full h-16 pl-6 pr-4 text-lg rounded-xl border-border/50 bg-background/80 backdrop-blur-sm focus-visible:ring-primary/50"
               aria-label="Type or speak your question here"
               aria-describedby="voice-hint"
