@@ -124,9 +124,7 @@ export function generateMockResult(question: string): ComparisonResult {
       explanation: "Claude wins because its answer was the most complete and its self-criticism was the most accurate and specific."
     },
     isMedical,
-    physicianNote: isMedical
-      ? "[Physician note coming soon. This section will contain verified medical insights written by our physician founder.]"
-      : undefined,
+    physicianNote: undefined,
     source: 'mock',
     cached: false,
     providerStatuses: mockResponses.map((response) => ({

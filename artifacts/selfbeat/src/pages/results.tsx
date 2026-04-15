@@ -132,7 +132,7 @@ export default function Results() {
             </div>
             <div>
               <h3 className="font-serif font-bold text-lg text-amber-400 mb-2 flex items-center gap-2">
-                Physician Note <AlertTriangle className="h-4 w-4" />
+                Physician Perspective — AI Generated <AlertTriangle className="h-4 w-4" />
               </h3>
               <p className="text-foreground/80 leading-relaxed">
                 {result.physicianNote}

@@ -83,10 +83,27 @@ const medicalKeywords = [
   "anxiety",
   "depression",
   "headache",
+  "migraine",
   "nausea",
   "virus",
   "vaccine",
   "heart",
+  "stroke",
+  "diabetes",
+  "cholesterol",
+  "hypertension",
+  "obesity",
+  "allergy",
+  "asthma",
+  "arthritis",
+  "chronic",
+  "mental health",
+  "sleep",
+  "fatigue",
+  "nutrition",
+  "supplement",
+  "exercise",
+  "weight",
 ];
 
 const normalizeQuestion = (question: string) =>
@@ -119,6 +136,33 @@ const fallbackAnswer = (model: ModelInfo, question: string) => {
 
 const fallbackCriticism = (model: ModelInfo) =>
   `I gave a usable answer, but I may have stayed too broad because the live provider was unavailable. I covered the main structure, but I did not fully test my claims against the other models. Claude usually handled nuance best, Gemini was clearest for the public, and ChatGPT was strongest at structured caveats. Honest score: 7.2/10.`;
+
+async function generatePhysicianNote(question: string, answers: string): Promise<string | undefined> {
+  try {
+    const { anthropic } = await import("@workspace/integrations-anthropic-ai");
+    const prompt = [
+      `You are a physician reviewing AI-generated answers about a health topic. The question was: ${question}. The AI models gave these answers: ${answers}. As a physician, write a brief 2-3 sentence note that:`,
+      `1. Confirms what the AIs got right`,
+      `2. Mentions anything important they missed`,
+      `3. Reminds the user to consult their doctor for personal medical advice`,
+      `Keep it simple, warm and under 100 words. Do not diagnose or prescribe anything.`,
+    ].join("\n");
+
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 256,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const raw = response.content
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .join("")
+      .trim();
+    // Strip any leading markdown headings Claude may add (e.g. "# Physician's Review\n\n")
+    return raw.replace(/^#+\s+[^\n]*\n+/, "").trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 async function withRetry<T>(operation: () => Promise<T>) {
   let lastError: unknown;
@@ -377,6 +421,14 @@ async function createComparison(question: string, mode: "live" | "mock") {
   const allLive = secondRound.every((response) => response.status === "success");
   const allFallback = secondRound.every((response) => response.status === "fallback");
 
+  const answersForPhysician = secondRound
+    .map((r) => `${r.displayName}: ${r.answer}`)
+    .join("\n\n");
+
+  const physicianNote = isMedical
+    ? await generatePhysicianNote(question, answersForPhysician)
+    : undefined;
+
   return {
     id: randomUUID(),
     question,
@@ -385,9 +437,7 @@ async function createComparison(question: string, mode: "live" | "mock") {
     verdict,
     verdictDetails,
     isMedical,
-    physicianNote: isMedical
-      ? "[Physician note coming soon. This section will contain verified medical insights written by our physician founder.]"
-      : undefined,
+    physicianNote,
     source: allLive ? ("live" as const) : allFallback ? ("mock" as const) : ("mixed" as const),
     cached: false,
     providerStatuses: secondRound.map((response) => ({
