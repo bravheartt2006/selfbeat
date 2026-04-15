@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Activity, ArrowRight, AlertCircle, Mic, MicOff } from "lucide-react";
+import { Activity, ArrowRight, AlertCircle, Mic, MicOff, X } from "lucide-react";
 
 export default function Home() {
   const [query, setQuery] = useState("");
@@ -10,8 +10,10 @@ export default function Home() {
   const [isListening, setIsListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [voiceError, setVoiceError] = useState("");
+  const [countdown, setCountdown] = useState<number | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const transcriptRef = useRef("");
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const exampleQuestions = [
     "What causes high blood pressure?",
@@ -26,10 +28,37 @@ export default function Home() {
     if (SR) setVoiceSupported(true);
   }, []);
 
+  const cancelCountdown = useCallback(() => {
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+    setCountdown(null);
+  }, []);
+
+  const startCountdown = useCallback((q: string) => {
+    setCountdown(3);
+    let remaining = 3;
+    countdownRef.current = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(countdownRef.current!);
+        countdownRef.current = null;
+        setCountdown(null);
+        setLocation(`/stream?q=${encodeURIComponent(q)}`);
+      } else {
+        setCountdown(remaining);
+      }
+    }, 1000);
+  }, [setLocation]);
+
   const toggleListening = () => {
     const SR = (window as unknown as { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition
       || (window as unknown as { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition;
     if (!SR) return;
+
+    // If counting down, cancel and allow re-record
+    cancelCountdown();
 
     if (isListening) {
       recognitionRef.current?.stop();
@@ -55,9 +84,7 @@ export default function Home() {
     recognition.onend = () => {
       setIsListening(false);
       const q = transcriptRef.current.trim();
-      if (q) {
-        setLocation(`/stream?q=${encodeURIComponent(q)}`);
-      }
+      if (q) startCountdown(q);
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -72,8 +99,15 @@ export default function Home() {
     setIsListening(true);
   };
 
+  const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setQuery(e.target.value);
+    // Typing cancels the voice countdown so the user can edit freely
+    if (countdown !== null) cancelCountdown();
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    cancelCountdown();
     const q = query.trim();
     if (!q) return;
     if (isListening) recognitionRef.current?.stop();
@@ -115,11 +149,11 @@ export default function Home() {
             <Input
               id="question-input"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={handleQueryChange}
               placeholder="Ask anything — press Enter to submit"
               className="w-full h-16 pl-6 pr-4 text-lg rounded-xl border-border/50 bg-background/80 backdrop-blur-sm focus-visible:ring-primary/50"
               aria-label="Type or speak your question here"
-              aria-describedby={voiceSupported ? "voice-hint" : undefined}
+              aria-describedby="voice-hint"
               autoComplete="off"
             />
 
@@ -128,13 +162,15 @@ export default function Home() {
               <button
                 type="button"
                 onClick={toggleListening}
-                aria-label={isListening ? "Stop recording — click to stop voice input" : "Start voice input — click to speak your question"}
+                aria-label={isListening ? "Stop recording" : countdown !== null ? "Cancel countdown and re-record" : "Start voice input"}
                 aria-pressed={isListening}
                 className={`
                   shrink-0 h-12 w-12 rounded-xl flex items-center justify-center border transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none
                   ${isListening
                     ? "bg-red-500 border-red-400 text-white shadow-lg shadow-red-500/40 animate-pulse"
-                    : "bg-card border-border/50 text-muted-foreground hover:text-primary hover:border-primary/50"
+                    : countdown !== null
+                      ? "bg-amber-500 border-amber-400 text-white"
+                      : "bg-card border-border/50 text-muted-foreground hover:text-primary hover:border-primary/50"
                   }
                 `}
               >
@@ -147,32 +183,66 @@ export default function Home() {
               size="lg"
               className="shrink-0 h-12 px-6 rounded-lg font-semibold transition-all hover:scale-105"
               disabled={!query.trim()}
-              aria-label={`Submit question: ${query.trim() || "Enter a question first"}`}
+              aria-label="Submit question"
             >
               Start Selfbeat <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
         </form>
 
-        {/* Voice status / error */}
-        <div aria-live="polite" aria-atomic="true" className="mt-3 min-h-[1.5rem] text-center">
+        {/* Status area */}
+        <div aria-live="polite" aria-atomic="true" className="mt-3 min-h-[2rem] flex items-center justify-center">
           {isListening && (
-            <p id="voice-hint" className="text-sm text-red-400 font-medium animate-pulse">
+            <p className="text-sm text-red-400 font-medium animate-pulse">
               Listening... speak your question now
             </p>
           )}
-          {!isListening && voiceError && (
-            <p className="text-sm text-amber-400">{voiceError}</p>
+
+          {!isListening && countdown !== null && (
+            <div className="flex items-center gap-3">
+              {/* Countdown ring */}
+              <div className="relative w-8 h-8 shrink-0">
+                <svg className="w-8 h-8 -rotate-90" viewBox="0 0 32 32" aria-hidden="true">
+                  <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-border/40" />
+                  <circle
+                    cx="16" cy="16" r="13" fill="none" stroke="currentColor" strokeWidth="2.5"
+                    strokeDasharray={`${2 * Math.PI * 13}`}
+                    strokeDashoffset={`${2 * Math.PI * 13 * (1 - countdown / 3)}`}
+                    className="text-amber-400 transition-all duration-700"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-amber-400">
+                  {countdown}
+                </span>
+              </div>
+              <p className="text-sm text-amber-400 font-medium">
+                Submitting in {countdown}s — keep speaking or
+              </p>
+              <button
+                type="button"
+                onClick={cancelCountdown}
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+                aria-label="Cancel auto-submit and stay on this page to edit"
+              >
+                <X className="h-3.5 w-3.5" />
+                Cancel
+              </button>
+            </div>
           )}
-          {!isListening && !voiceError && voiceSupported && (
+
+          {!isListening && countdown === null && !voiceError && voiceSupported && (
             <p id="voice-hint" className="text-xs text-muted-foreground/60">
-              Type and press Enter, or tap the microphone to speak — it submits automatically
+              Type and press Enter, or tap the microphone to speak — submits after 3 seconds
             </p>
           )}
-          {!isListening && !voiceError && !voiceSupported && (
-            <p className="text-xs text-muted-foreground/60">
+          {!isListening && countdown === null && !voiceError && !voiceSupported && (
+            <p id="voice-hint" className="text-xs text-muted-foreground/60">
               Type your question and press Enter to submit
             </p>
+          )}
+          {!isListening && countdown === null && voiceError && (
+            <p className="text-sm text-amber-400">{voiceError}</p>
           )}
         </div>
       </div>
@@ -185,7 +255,7 @@ export default function Home() {
         {exampleQuestions.map((q, i) => (
           <button
             key={i}
-            onClick={() => setQuery(q)}
+            onClick={() => { cancelCountdown(); setQuery(q); }}
             aria-label={`Use example question: ${q}`}
             className="text-left p-4 rounded-xl border border-border/40 bg-card/30 hover:bg-card/80 hover:border-primary/30 transition-all text-sm text-muted-foreground hover:text-foreground group focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
           >
