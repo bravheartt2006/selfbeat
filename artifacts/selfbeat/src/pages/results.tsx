@@ -4,7 +4,7 @@ import { getResult, ComparisonResult } from "@/lib/store";
 import { getSelfbeatComparison } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote, XCircle, Database } from "lucide-react";
+import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote, XCircle, Database, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek" | "grok" | "mistral" | "llama" | "perplexity" | "cohere" | "qwen" | "copilot";
@@ -116,10 +116,19 @@ export default function Results() {
             "{result.question}"
           </h1>
         </div>
-        <Button variant="outline" onClick={handleShare} className="shrink-0 group">
-          <Share2 className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-          Share Results
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            onClick={() => setLocation("/")}
+            className="bg-amber-400 hover:bg-amber-300 text-black font-bold shadow-lg shadow-amber-400/30 border-0"
+          >
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Start Over
+          </Button>
+          <Button variant="outline" onClick={handleShare} className="group">
+            <Share2 className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            Share Results
+          </Button>
+        </div>
       </div>
 
       {loadError && (
