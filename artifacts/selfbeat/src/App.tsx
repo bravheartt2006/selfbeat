@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Results from "@/pages/results";
+import StreamingResults from "@/pages/streaming-results";
 import Leaderboard from "@/pages/leaderboard";
 import About from "@/pages/about";
 import Navbar from "@/components/layout/Navbar";
@@ -19,6 +20,7 @@ function Router() {
       <main className="flex-1">
         <Switch>
           <Route path="/" component={Home} />
+          <Route path="/stream" component={StreamingResults} />
           <Route path="/results/:id" component={Results} />
           <Route path="/leaderboard" component={Leaderboard} />
           <Route path="/about" component={About} />

@@ -577,6 +577,258 @@ async function createComparison(question: string, mode: "live" | "mock") {
   };
 }
 
+// ─── STREAMING SSE ENDPOINT ─────────────────────────────────────────────────
+// Emits per-model events progressively so the UI can update as each AI responds.
+
+const buildAnswerPrompt = (model: ModelInfo, question: string) =>
+  `You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 220 words.\n\nQuestion: ${question}`;
+
+const buildCritiquePromptText = (
+  model: ModelInfo,
+  question: string,
+  answer: string,
+  allAnswers: string,
+) =>
+  [
+    `You are ${model.displayName} in Selfbeat's self-criticism round.`,
+    `Be genuinely honest and critical — do not give yourself an inflated score.`,
+    `Scores must reflect real quality differences. A mediocre answer is a 5–6, a good answer is a 7–8, an excellent answer is 9–10.`,
+    ``,
+    `User question: ${question}`,
+    ``,
+    `Your answer:`,
+    answer,
+    ``,
+    `All AI answers for comparison:`,
+    allAnswers,
+    ``,
+    `Write your self-criticism in 3–4 sentences: what you got right, what you missed, which other AI did better and why.`,
+    `End with exactly this format on its own line: "Accuracy score: X/10. Self-awareness score: Y/10."`,
+    `Keep it under 180 words total.`,
+  ].join("\n");
+
+const buildVerdictStr = (
+  responses: ModelResponse[],
+  verdictDetails: { bestAnswer: string; clearestAnswer: string; agreementPoints: string[]; disagreementPoints: string[]; overallWinner: string; explanation: string },
+) =>
+  `Accuracy scores: ${responses.map((r) => `${r.displayName} ${r.accuracyScore}/10`).join(", ")}. ` +
+  `Self-awareness scores: ${responses.map((r) => `${r.displayName} ${r.selfAwarenessScore}/10`).join(", ")}. ` +
+  `Best answer: ${verdictDetails.bestAnswer} ` +
+  `Clearest answer for the general public: ${verdictDetails.clearestAnswer}. ` +
+  `Key agreements: ${verdictDetails.agreementPoints.join(" ")} ` +
+  `Key disagreements: ${verdictDetails.disagreementPoints.join(" ")} ` +
+  `Overall winner: ${verdictDetails.overallWinner}. ${verdictDetails.explanation}`;
+
+router.post("/selfbeat/comparisons/stream", async (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const emit = (event: string, data: unknown) => {
+    if (!res.writableEnded) {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    }
+  };
+
+  const parsed = CreateSelfbeatComparisonBody.safeParse(req.body);
+  if (!parsed.success) {
+    emit("error", { message: "Invalid request." });
+    res.end();
+    return;
+  }
+
+  const question = parsed.data.question.trim();
+  const questionKey = normalizeQuestion(question);
+  const isMedical = isMedicalQuestion(question);
+
+  try {
+    // Serve from cache (replay all events quickly)
+    const cached = await db.query.selfbeatComparisonsTable.findFirst({
+      where: eq(selfbeatComparisonsTable.questionKey, questionKey),
+    });
+
+    if (cached) {
+      const r = cached.result as { id: string; responses: ModelResponse[]; verdict: string; verdictDetails: { summary: string; bestAnswer: string; clearestAnswer: string; agreementPoints: string[]; disagreementPoints: string[]; overallWinner: string; explanation: string }; isMedical: boolean; physicianNote?: string };
+      emit("cached", { id: r.id });
+      for (const resp of r.responses) {
+        emit("round1", { model: resp.model, displayName: resp.displayName, color: resp.color, answer: resp.answer, status: resp.status, isGeneric: resp.isGeneric });
+      }
+      for (const resp of r.responses) {
+        emit("round2", resp);
+      }
+      emit("verdict", { verdictDetails: r.verdictDetails, isMedical: r.isMedical, physicianNote: r.physicianNote, verdict: r.verdict });
+      emit("done", { id: r.id });
+      res.end();
+      return;
+    }
+
+    // ── Round 1: all 10 models in parallel, emit each as it resolves ──────
+    emit("status", { phase: "round1", message: "Round 1: Querying all 10 AI models simultaneously..." });
+
+    const round1Results = await Promise.all(
+      models.map(async (model) => {
+        let answer: string;
+        let status: "success" | "fallback";
+        let error: string | undefined;
+
+        try {
+          const raw = await askModel(model, buildAnswerPrompt(model, question));
+          answer = raw || fallbackAnswer(model, question);
+          status = raw ? "success" : "fallback";
+          error = raw ? undefined : "Provider returned empty answer.";
+        } catch (err) {
+          answer = fallbackAnswer(model, question);
+          status = "fallback";
+          error = err instanceof Error ? err.message : "Provider unavailable.";
+        }
+
+        emit("round1", {
+          model: model.key,
+          displayName: model.displayName,
+          color: model.color,
+          answer,
+          status,
+          isGeneric: detectGenericResponse(answer, question, status),
+        });
+
+        return { model, answer, status, error };
+      }),
+    );
+
+    const allAnswers = round1Results
+      .map(({ model, answer }) => `${model.displayName}: ${answer}`)
+      .join("\n\n");
+
+    const modelSeeds = round1Results.map((_, i) =>
+      clampScore(5.5 + questionSeed(question, i + 1) * 4.0),
+    );
+
+    // ── Round 2: all 10 critiques in parallel, emit each as it resolves ──
+    emit("status", { phase: "round2", message: "Round 2: AIs examining each other simultaneously..." });
+
+    const secondRound = await Promise.all(
+      round1Results.map(async ({ model, answer, status, error }, index) => {
+        const seededBase = Math.round(modelSeeds[index] * 10) / 10;
+
+        let accuracyScore: number;
+        let selfAwarenessScore: number;
+        let critiqueText: string;
+        let finalStatus: "success" | "fallback";
+        let declined = false;
+
+        if (status === "fallback") {
+          accuracyScore = seededBase;
+          selfAwarenessScore = clampScore(seededBase + (questionSeed(question, index + 10) * 1.5 - 0.5));
+          critiqueText = fallbackCriticism(model);
+          finalStatus = "fallback";
+        } else {
+          let critique = "";
+          try {
+            critique = await askModel(model, buildCritiquePromptText(model, question, answer, allAnswers));
+          } catch {}
+
+          const accuracyMatch = critique.match(/accuracy\s+score[^\d]*(\d+(?:\.\d+)?)\s*\/\s*10/i);
+          const selfAwareMatch = critique.match(/self.awareness\s+score[^\d]*(\d+(?:\.\d+)?)\s*\/\s*10/i);
+
+          accuracyScore = accuracyMatch ? clampScore(Number(accuracyMatch[1])) : extractScore(critique, seededBase);
+          selfAwarenessScore = selfAwareMatch
+            ? clampScore(Number(selfAwareMatch[1]))
+            : clampScore(accuracyScore + (questionSeed(question, index + 20) * 1.4 - 0.7));
+
+          critiqueText = critique || fallbackCriticism(model);
+          finalStatus = critique ? "success" : "fallback";
+          declined = detectRefusal(critiqueText);
+        }
+
+        const score = Math.round(((accuracyScore + selfAwarenessScore) / 2) * 10) / 10;
+        const isGeneric = detectGenericResponse(answer, question, status);
+
+        const fullResponse: ModelResponse = {
+          model: model.key,
+          displayName: model.displayName,
+          color: model.color,
+          answer,
+          selfCriticism: critiqueText,
+          score,
+          accuracyScore,
+          selfAwarenessScore,
+          status: finalStatus,
+          error,
+          declined,
+          isGeneric,
+        };
+
+        emit("round2", fullResponse);
+        return fullResponse;
+      }),
+    );
+
+    // ── Round 3: verdict + insights (can run insight + physician in parallel) ─
+    emit("status", { phase: "verdict", message: "Round 3: Calculating final verdict..." });
+
+    const winner = [...secondRound].sort((a, b) => b.score - a.score)[0] ?? secondRound[0];
+    const answerPayload = secondRound
+      .filter((r) => !r.isGeneric)
+      .map((r) => ({ displayName: r.displayName, answer: r.answer }));
+
+    const [insights, physicianNote] = await Promise.all([
+      generateVerdictInsights(question, answerPayload.length > 0 ? answerPayload : secondRound.map((r) => ({ displayName: r.displayName, answer: r.answer }))),
+      isMedical
+        ? generatePhysicianNote(question, secondRound.map((r) => `${r.displayName}: ${r.answer}`).join("\n\n"))
+        : Promise.resolve(undefined),
+    ]);
+
+    const verdictDetails = {
+      summary: `${winner.displayName} produced the strongest combined performance for this question, with the highest score across accuracy and self-awareness.`,
+      bestAnswer: `${winner.displayName} gave the best answer because it earned the highest combined score.`,
+      clearestAnswer: secondRound.find((r) => r.model === "gemini")?.displayName ?? winner.displayName,
+      agreementPoints: insights.agreementPoints,
+      disagreementPoints: insights.disagreementPoints,
+      overallWinner: winner.displayName,
+      explanation: `${winner.displayName} wins with a score of ${winner.score}/10 — the highest across all 10 models for this question.`,
+    };
+
+    const allLive = secondRound.every((r) => r.status === "success");
+    const allFallback = secondRound.every((r) => r.status === "fallback");
+    const verdict = buildVerdictStr(secondRound, verdictDetails);
+
+    emit("verdict", { verdictDetails, isMedical, physicianNote, verdict });
+
+    // Save to DB
+    const id = randomUUID();
+    const fullResult = {
+      id,
+      question,
+      timestamp: Date.now(),
+      responses: secondRound,
+      verdict,
+      verdictDetails,
+      isMedical,
+      physicianNote,
+      source: allLive ? ("live" as const) : allFallback ? ("mock" as const) : ("mixed" as const),
+      cached: false,
+      providerStatuses: secondRound.map((r) => ({
+        model: r.model,
+        provider: models.find((m) => m.key === r.model)?.displayName ?? r.model,
+        status: r.status === "success" ? ("live" as const) : ("fallback" as const),
+        message: r.status === "success" ? "Live provider response used." : r.error || "Fallback response used.",
+      })),
+    };
+
+    try {
+      await db.insert(selfbeatComparisonsTable).values({ id, questionKey, question, result: fullResult });
+    } catch {}
+
+    emit("done", { id });
+    res.end();
+  } catch (err) {
+    req.log.error({ err }, "Streaming comparison failed");
+    emit("error", { message: "Comparison failed. Please try again in a moment." });
+    res.end();
+  }
+});
+
 router.post("/selfbeat/comparisons", async (req, res) => {
   const parsed = CreateSelfbeatComparisonBody.safeParse(req.body);
 
