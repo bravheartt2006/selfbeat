@@ -391,7 +391,7 @@ function Round2CTA({
           <div className="flex-1 min-w-0">
             <div className="text-xs font-semibold uppercase tracking-widest text-primary/70 mb-1">Round 1 Complete</div>
             <h2 className="text-lg md:text-xl font-serif font-bold text-foreground">
-              All 10 AIs have answered. Now watch them judge themselves.
+              All 11 AIs have answered. Now watch them judge themselves.
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
               {allLoaded
@@ -620,7 +620,7 @@ export default function StreamingResults() {
   // ── Derived state ──────────────────────────────────────────────────────────
   const answeredCount = cards.filter((c) => c.cardPhase !== "waiting").length;
   const critiquedCount = cards.filter((c) => c.cardPhase === "critiqued").length;
-  const round1AllDone = answeredCount === 10;
+  const round1AllDone = answeredCount === cards.length && cards.length > 0;
 
   const { slowThreshold } = computeSpeedMeta(cards);
 
@@ -648,11 +648,11 @@ export default function StreamingResults() {
         <div>
           <div className="text-sm font-mono text-muted-foreground mb-2 flex items-center gap-2 flex-wrap">
             {isCached && <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold">Cached result</span>}
-            <span>{answeredCount}/10 answered</span>
+            <span>{answeredCount}/{cards.length || 11} answered</span>
             {showRound2 && (
               <>
                 <span className="w-1 h-1 rounded-full bg-border" />
-                <span>{critiquedCount}/10 self-critiqued</span>
+                <span>{critiquedCount}/{cards.length || 11} self-critiqued</span>
               </>
             )}
           </div>
@@ -675,14 +675,14 @@ export default function StreamingResults() {
         <div className="mb-8 space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
-              {phase === "connecting" ? "Connecting to 10 AI models..." : "Round 1: querying all 10 models simultaneously..."}
+              {phase === "connecting" ? "Connecting to 11 AI models..." : "Round 1: querying all 11 models simultaneously..."}
             </span>
-            <span className="text-primary font-mono text-xs">{answeredCount}/10</span>
+            <span className="text-primary font-mono text-xs">{answeredCount}/11</span>
           </div>
           <div className="h-1.5 rounded-full bg-border/40 overflow-hidden">
             <div
               className="h-full rounded-full bg-primary transition-all duration-500"
-              style={{ width: phase === "connecting" ? "2%" : `${5 + (answeredCount / 10) * 90}%` }}
+              style={{ width: phase === "connecting" ? "2%" : `${5 + (answeredCount / (cards.length || 11)) * 90}%` }}
             />
           </div>
         </div>

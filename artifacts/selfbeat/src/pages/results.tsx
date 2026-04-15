@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote, XCircle, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek" | "grok" | "mistral" | "llama" | "perplexity" | "cohere" | "qwen";
+type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek" | "grok" | "mistral" | "llama" | "perplexity" | "cohere" | "qwen" | "copilot";
 
 const MODEL_META: Record<ModelKey, { name: string; color: string }> = {
   chatgpt:    { name: "ChatGPT",           color: "#10A37F" },
@@ -18,8 +18,9 @@ const MODEL_META: Record<ModelKey, { name: string; color: string }> = {
   mistral:    { name: "Mistral Large",     color: "#EF4444" },
   llama:      { name: "Llama 3.3 (Meta)",  color: "#1877F2" },
   perplexity: { name: "Perplexity Sonar",  color: "#06B6D4" },
-  cohere:     { name: "Cohere Command R+", color: "#22C55E" },
-  qwen:       { name: "Qwen 2.5",          color: "#A855F7" },
+  cohere:     { name: "Cohere Command R+",  color: "#22C55E" },
+  qwen:       { name: "Qwen 2.5",           color: "#A855F7" },
+  copilot:    { name: "Microsoft Copilot",  color: "#0078D4" },
 };
 
 function getModelMeta(key: string) {

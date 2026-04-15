@@ -22,7 +22,7 @@ export default function Leaderboard() {
     <div className="container py-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
       <div className="text-center mb-16">
         <h1 className="text-4xl md:text-5xl font-bold mb-4 font-serif">Global Leaderboard</h1>
-        <p className="text-xl text-muted-foreground">Tracking AI performance, honesty, and self-awareness across 10 models.</p>
+        <p className="text-xl text-muted-foreground">Tracking AI performance, honesty, and self-awareness across 11 models.</p>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-3">

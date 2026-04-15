@@ -9,7 +9,7 @@ import {
 } from "@workspace/api-zod";
 import { db, selfbeatComparisonsTable } from "@workspace/db";
 
-type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek" | "grok" | "mistral" | "llama" | "perplexity" | "cohere" | "qwen";
+type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek" | "grok" | "mistral" | "llama" | "perplexity" | "cohere" | "qwen" | "copilot";
 
 type ModelProvider = "openai" | "anthropic" | "gemini" | "openrouter";
 
@@ -49,6 +49,7 @@ const models: ModelInfo[] = [
   { key: "perplexity", displayName: "Perplexity Sonar",  color: "#06B6D4", provider: "openrouter", routerModel: "perplexity/sonar" },
   { key: "cohere",     displayName: "Cohere Command R+", color: "#22C55E", provider: "openrouter", routerModel: "cohere/command-r-plus" },
   { key: "qwen",       displayName: "Qwen 2.5 (Alibaba)",color: "#A855F7", provider: "openrouter", routerModel: "qwen/qwen-2.5-72b-instruct" },
+  { key: "copilot",    displayName: "Microsoft Copilot", color: "#0078D4", provider: "openrouter", routerModel: "microsoft/phi-4" },
 ];
 
 const medicalKeywords = [
@@ -146,6 +147,10 @@ const fallbackAnswer = (model: ModelInfo, question: string) => {
     return `For "${q}": I draw on a broad multilingual training corpus that includes significant coverage of Asian academic and professional sources, which sometimes yields a different emphasis than Western-centric models. The core factual answer is consistent across sources. Where cultural or regional context changes the answer, I try to make that explicit rather than defaulting to a single geopolitical framing. The question is well-formed and has a clear answer at the general level.`;
   }
 
+  if (model.key === "copilot") {
+    return `On "${q}": I aim to give a helpful, grounded answer by combining broad knowledge with practical clarity. Microsoft's approach to AI emphasizes responsible, useful responses that serve a wide range of people. The core answer here is well-established; I will present it directly and flag where individual circumstances or additional context would meaningfully change what I recommend.`;
+  }
+
   return `Analyzing "${q}" analytically: the question can be broken into its core claim, its underlying assumptions, and the evidence that supports or contradicts each. The logical structure of the strongest answer involves acknowledging what is definitively known, what is probabilistic, and what remains genuinely uncertain. From a reasoning standpoint, the most defensible position is the one that is falsifiable and internally consistent.`;
 };
 
@@ -168,7 +173,7 @@ async function backupAnswer(question: string): Promise<string> {
 }
 
 const fallbackCriticism = (model: ModelInfo) => {
-  const others = "Claude, ChatGPT, Gemini, Grok, Mistral, Llama, Perplexity, Cohere, and Qwen"
+  const others = "Claude, ChatGPT, Gemini, Grok, Mistral, Llama, Perplexity, Cohere, Qwen, and Microsoft Copilot"
     .replace(new RegExp(`${model.displayName},?\\s?`), "").trim();
   return `I gave a usable answer, but I may have stayed too broad because the live provider was unavailable. I covered the main structure but did not fully benchmark my claims against the other models (${others}). Honest score: 7.0/10.`;
 };
