@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Activity, ArrowRight, AlertCircle, Mic, MicOff, X, Volume2 } from "lucide-react";
+import { Activity, ArrowRight, AlertCircle, Mic, MicOff, X } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 
 type SR = typeof SpeechRecognition;
@@ -39,7 +39,6 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const [isListening, setIsListening] = useState(false);
   const [isGreeting, setIsGreeting] = useState(false);
-  const [hasGreeted, setHasGreeted] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -47,6 +46,7 @@ export default function Home() {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const transcriptRef = useRef("");
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const greetedRef = useRef(false);
 
   const exampleQuestions = [t("exQ1"), t("exQ2"), t("exQ3"), t("exQ4")];
 
@@ -116,7 +116,6 @@ export default function Home() {
   }, [startCountdown, speechLang]);
 
   const speakGreetingThenListen = useCallback(() => {
-    setHasGreeted(true);
     if (!window.speechSynthesis) {
       startListening();
       return;
@@ -152,24 +151,38 @@ export default function Home() {
     if (SR) setVoiceSupported(true);
   }, []);
 
-  // If language-select already fired the greeting while the user was clicking,
-  // detect it and hook into its end to open the mic automatically.
-  // For all other cases (returning users, direct visits) a "Tap to hear" button
-  // handles the first interaction — Chrome blocks speech from useEffect anyway.
+  // Auto-play greeting then open mic on first mount.
+  // Strategy: wait 250 ms so that fireGreeting() from language-select has time to
+  // set window.speechSynthesis.speaking = true. Then:
+  //  • if already speaking  → hook into it (no double-play)
+  //  • if not speaking      → speak ourselves (works because the user's tap on
+  //                           language-select counts as a gesture for the whole SPA)
   useEffect(() => {
-    if (!window.speechSynthesis?.speaking) return;
+    if (greetedRef.current || !window.speechSynthesis) return;
 
-    setHasGreeted(true);
-    setIsGreeting(true);
-    const poll = setInterval(() => {
-      if (!window.speechSynthesis.speaking) {
-        clearInterval(poll);
-        setIsGreeting(false);
-        startListening();
+    const tid = setTimeout(() => {
+      if (greetedRef.current) return;
+      greetedRef.current = true;
+
+      if (window.speechSynthesis.speaking) {
+        // Greeting already playing from language-select — just wait for it to end
+        setIsGreeting(true);
+        const poll = setInterval(() => {
+          if (!window.speechSynthesis.speaking) {
+            clearInterval(poll);
+            setIsGreeting(false);
+            startListening();
+          }
+        }, 150);
+        return;
       }
-    }, 150);
-    return () => clearInterval(poll);
-  }, [startListening]);
+
+      // Speak the greeting now
+      speakGreetingThenListen();
+    }, 250);
+
+    return () => clearTimeout(tid);
+  }, [speakGreetingThenListen, startListening]);
 
   const toggleListening = () => {
     cancelCountdown();
@@ -322,20 +335,7 @@ export default function Home() {
             </div>
           )}
 
-          {statusPhase === "idle" && !voiceError && voiceSupported && !hasGreeted && (
-            <button
-              type="button"
-              onClick={speakGreetingThenListen}
-              className="group flex items-center gap-2.5 px-5 py-2.5 rounded-full border border-primary/40 bg-primary/10 hover:bg-primary/20 transition-all duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <span className="relative flex h-4 w-4 items-center justify-center">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-primary/40 animate-ping" />
-                <Volume2 className="relative h-3.5 w-3.5 text-primary" />
-              </span>
-              <span className="text-sm font-medium text-primary">Tap to hear Selfbeat</span>
-            </button>
-          )}
-          {statusPhase === "idle" && !voiceError && voiceSupported && hasGreeted && (
+          {statusPhase === "idle" && !voiceError && voiceSupported && (
             <p className="text-xs text-muted-foreground/60">{t("idleHint")}</p>
           )}
           {statusPhase === "idle" && !voiceError && !voiceSupported && (
