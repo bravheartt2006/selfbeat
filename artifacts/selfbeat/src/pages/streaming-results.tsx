@@ -2,11 +2,14 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearch, useLocation } from "wouter";
 import { saveResult } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Share2, Trophy, MessageSquareQuote, XCircle, Database, Stethoscope, AlertTriangle, Copy } from "lucide-react";
+import {
+  Share2, Trophy, MessageSquareQuote, XCircle, Database,
+  Stethoscope, AlertTriangle, Copy, ChevronRight, Zap, Clock, Hourglass,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
-// ─── Types ─────────────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 type Phase = "connecting" | "round1" | "round2" | "verdict" | "done" | "error";
 
@@ -22,6 +25,7 @@ type ModelCard = {
   selfAwarenessScore?: number;
   declined?: boolean;
   isGeneric?: boolean;
+  responseTime?: number;   // seconds elapsed when round1 arrived
 };
 
 type VerdictPayload = {
@@ -39,7 +43,7 @@ type VerdictPayload = {
   verdict: string;
 };
 
-// ─── Model stubs (used to pre-render all 10 cards before data arrives) ─────
+// ─── Model stubs ─────────────────────────────────────────────────────────────
 
 const MODEL_STUBS: Pick<ModelCard, "key" | "displayName" | "color">[] = [
   { key: "chatgpt",    displayName: "ChatGPT",           color: "#10A37F" },
@@ -57,7 +61,7 @@ const MODEL_STUBS: Pick<ModelCard, "key" | "displayName" | "color">[] = [
 const initialCards = (): ModelCard[] =>
   MODEL_STUBS.map((s) => ({ ...s, cardPhase: "waiting" }));
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function hexToRgba(hex: string, alpha: number) {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -66,18 +70,86 @@ function hexToRgba(hex: string, alpha: number) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-const PHASE_LABELS: Record<Phase, string> = {
-  connecting:  "Connecting to AI models...",
-  round1:      "Round 1: Querying all 10 models simultaneously...",
-  round2:      "Round 2: AIs examining each other...",
-  verdict:     "Round 3: Calculating final verdict...",
-  done:        "Complete",
-  error:       "Error",
-};
+function fmtSec(s: number) {
+  return s < 10 ? `${s.toFixed(1)}s` : `${Math.round(s)}s`;
+}
 
-// ─── Loading pulse card ─────────────────────────────────────────────────────
+// Slowness threshold: top quartile of response time range is "slow"
+function computeSpeedMeta(cards: ModelCard[]) {
+  const responded = cards.filter((c) => c.responseTime != null);
+  if (responded.length === 0) return { fastest: null, slowest: null, slowThreshold: Infinity };
+  const times = responded.map((c) => c.responseTime!);
+  const min = Math.min(...times);
+  const max = Math.max(...times);
+  return {
+    fastest: responded.find((c) => c.responseTime === min) ?? null,
+    slowest: responded.find((c) => c.responseTime === max) ?? null,
+    slowThreshold: max - min > 3 ? min + (max - min) * 0.65 : Infinity,
+  };
+}
 
-function ThinkingCard({ card }: { card: ModelCard }) {
+// ─── Timer badge ─────────────────────────────────────────────────────────────
+
+function TimerBadge({ responseTime, isSlow }: { responseTime: number; isSlow: boolean }) {
+  return (
+    <div className={`flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded-full ${
+      isSlow
+        ? "bg-orange-500/15 text-orange-400 border border-orange-500/20"
+        : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+    }`}>
+      {isSlow ? <Hourglass className="h-2.5 w-2.5" /> : <Zap className="h-2.5 w-2.5" />}
+      {fmtSec(responseTime)}
+    </div>
+  );
+}
+
+// ─── Elapsed live timer (for waiting cards) ──────────────────────────────────
+
+function ElapsedTimer({ startedAt }: { startedAt: number }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 500);
+    return () => clearInterval(id);
+  }, [startedAt]);
+  return <span className="text-[10px] font-mono text-muted-foreground/60">{elapsed}s</span>;
+}
+
+// ─── Speed leaderboard strip ─────────────────────────────────────────────────
+
+function SpeedStrip({ cards }: { cards: ModelCard[] }) {
+  const { fastest, slowest } = computeSpeedMeta(cards);
+  if (!fastest || !slowest || fastest.key === slowest.key) return null;
+
+  return (
+    <div className="mb-6 flex items-center gap-4 flex-wrap px-4 py-3 rounded-xl border border-border/30 bg-card/30 text-sm">
+      <span className="text-muted-foreground text-xs font-semibold uppercase tracking-widest shrink-0">Speed this round</span>
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+          <Zap className="h-3 w-3 text-emerald-400" />
+          <span className="text-xs font-semibold" style={{ color: fastest.color }}>
+            {fastest.displayName}
+          </span>
+          <span className="text-[10px] font-mono text-emerald-400">{fmtSec(fastest.responseTime!)}</span>
+        </div>
+        <span className="text-muted-foreground/40 text-xs">vs</span>
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-500/10 border border-orange-500/20">
+          <Hourglass className="h-3 w-3 text-orange-400" />
+          <span className="text-xs font-semibold" style={{ color: slowest.color }}>
+            {slowest.displayName}
+          </span>
+          <span className="text-[10px] font-mono text-orange-400">{fmtSec(slowest.responseTime!)}</span>
+        </div>
+      </div>
+      <span className="text-[11px] text-muted-foreground">
+        {(slowest.responseTime! / fastest.responseTime!).toFixed(1)}x speed difference
+      </span>
+    </div>
+  );
+}
+
+// ─── Thinking card ────────────────────────────────────────────────────────────
+
+function ThinkingCard({ card, streamStart }: { card: ModelCard; streamStart: number }) {
   const hex = card.color;
   const borderTint = hexToRgba(hex, 0.2);
   const bgTint = hexToRgba(hex, 0.05);
@@ -85,9 +157,15 @@ function ThinkingCard({ card }: { card: ModelCard }) {
   return (
     <Card className="flex flex-col h-full bg-card/40" style={{ borderColor: borderTint }}>
       <CardHeader className="pb-3" style={{ borderBottom: `1px solid ${borderTint}`, background: bgTint }}>
-        <div className="flex items-center gap-2.5">
-          <div className="w-2.5 h-2.5 rounded-full shrink-0 animate-pulse" style={{ backgroundColor: hex }} />
-          <CardTitle className="font-serif text-base" style={{ color: hex }}>{card.displayName}</CardTitle>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-2.5 h-2.5 rounded-full shrink-0 animate-pulse" style={{ backgroundColor: hex }} />
+            <CardTitle className="font-serif text-base" style={{ color: hex }}>{card.displayName}</CardTitle>
+          </div>
+          <div className="flex items-center gap-1 text-muted-foreground/60">
+            <Clock className="h-3 w-3" />
+            <ElapsedTimer startedAt={streamStart} />
+          </div>
         </div>
       </CardHeader>
       <CardContent className="pt-4 flex-1">
@@ -117,19 +195,39 @@ function ThinkingCard({ card }: { card: ModelCard }) {
   );
 }
 
-// ─── Answered card (round 1 done, round 2 pending) ──────────────────────────
+// ─── Answered card ────────────────────────────────────────────────────────────
 
-function AnsweredCard({ card, onCopy }: { card: ModelCard; onCopy: (text: string) => void }) {
+function AnsweredCard({
+  card, isSlow, showCritiqueSpinner, onCopy,
+}: {
+  card: ModelCard;
+  isSlow: boolean;
+  showCritiqueSpinner: boolean;
+  onCopy: (text: string) => void;
+}) {
   const hex = card.color;
   const borderTint = hexToRgba(hex, 0.2);
   const bgTint = hexToRgba(hex, 0.07);
 
   return (
-    <Card className="flex flex-col h-full bg-card/40 animate-in fade-in slide-in-from-bottom-3 duration-500" style={{ borderColor: borderTint }}>
+    <Card
+      className="flex flex-col h-full bg-card/40 animate-in fade-in slide-in-from-bottom-3 duration-500"
+      style={{ borderColor: borderTint, opacity: isSlow ? 0.8 : 1 }}
+    >
       <CardHeader className="pb-3" style={{ borderBottom: `1px solid ${borderTint}`, background: bgTint }}>
-        <div className="flex items-center gap-2.5">
-          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: hex }} />
-          <CardTitle className="font-serif text-base" style={{ color: hex }}>{card.displayName}</CardTitle>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: hex }} />
+            <CardTitle className="font-serif text-base" style={{ color: hex }}>{card.displayName}</CardTitle>
+            {isSlow && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/20 uppercase tracking-wide">
+                slower
+              </span>
+            )}
+          </div>
+          {card.responseTime != null && (
+            <TimerBadge responseTime={card.responseTime} isSlow={isSlow} />
+          )}
         </div>
         {card.isGeneric && (
           <div className="mt-2 flex items-start gap-1.5 text-amber-400">
@@ -146,40 +244,63 @@ function AnsweredCard({ card, onCopy }: { card: ModelCard; onCopy: (text: string
           </div>
           <p className="text-sm leading-relaxed text-foreground/90">{card.answer}</p>
         </div>
-        <div className="rounded-xl p-3 border border-muted/30 bg-muted/10">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <div className="flex gap-1">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="w-1 h-1 rounded-full animate-bounce bg-current" style={{ animationDelay: `${i * 0.15}s` }} />
-              ))}
+        {showCritiqueSpinner && (
+          <div className="rounded-xl p-3 border border-muted/30 bg-muted/10">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="flex gap-1">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="w-1 h-1 rounded-full animate-bounce bg-current" style={{ animationDelay: `${i * 0.15}s` }} />
+                ))}
+              </div>
+              <span className="text-[11px]">Loading self-critique...</span>
             </div>
-            <span className="text-[11px]">Awaiting self-critique...</span>
           </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );
 }
 
-// ─── Full card (both rounds done) ───────────────────────────────────────────
+// ─── Full card (both rounds visible) ─────────────────────────────────────────
 
-function FullCard({ card, rank, question, onCopy }: { card: ModelCard; rank: number; question: string; onCopy: (text: string) => void }) {
+function FullCard({
+  card, rank, question, isSlow, onCopy,
+}: {
+  card: ModelCard;
+  rank: number;
+  question: string;
+  isSlow: boolean;
+  onCopy: (text: string) => void;
+}) {
   const hex = card.color;
   const borderTint = hexToRgba(hex, 0.2);
   const bgTint = hexToRgba(hex, 0.07);
 
   return (
-    <Card className="flex flex-col h-full bg-card/40 animate-in fade-in duration-400" style={{ borderColor: borderTint }}>
+    <Card
+      className="flex flex-col h-full bg-card/40 animate-in fade-in duration-400"
+      style={{ borderColor: borderTint, opacity: isSlow ? 0.85 : 1 }}
+    >
       <CardHeader className="pb-3" style={{ borderBottom: `1px solid ${borderTint}`, background: bgTint }}>
         <div className="flex justify-between items-start">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: hex }} />
             <CardTitle className="font-serif text-base leading-tight" style={{ color: hex }}>{card.displayName}</CardTitle>
             {rank === 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">WINNER</span>}
+            {isSlow && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/20 uppercase tracking-wide">
+                slower
+              </span>
+            )}
           </div>
-          <div className="text-right shrink-0 ml-2">
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Score</div>
-            <div className="font-mono text-xl font-bold leading-none" style={{ color: hex }}>{card.score?.toFixed(1)}</div>
+          <div className="flex items-center gap-2 shrink-0 ml-2">
+            {card.responseTime != null && (
+              <TimerBadge responseTime={card.responseTime} isSlow={isSlow} />
+            )}
+            <div className="text-right">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Score</div>
+              <div className="font-mono text-xl font-bold leading-none" style={{ color: hex }}>{card.score?.toFixed(1)}</div>
+            </div>
           </div>
         </div>
         <div className="mt-2.5 space-y-1">
@@ -216,7 +337,7 @@ function FullCard({ card, rank, question, onCopy }: { card: ModelCard; rank: num
           </div>
         )}
 
-        <div className="rounded-xl p-3.5" style={{ border: `1px solid ${borderTint}`, backgroundColor: bgTint }}>
+        <div className="rounded-xl p-3.5 animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ border: `1px solid ${borderTint}`, backgroundColor: bgTint }}>
           <div className="text-[10px] font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1.5" style={{ color: hex }}>
             <MessageSquareQuote className="h-3 w-3 shrink-0" />
             Round 2: Selfbeat Analysis
@@ -250,7 +371,59 @@ function FullCard({ card, rank, question, onCopy }: { card: ModelCard; rank: num
   );
 }
 
-// ─── Main streaming results page ─────────────────────────────────────────────
+// ─── CTA banner: "See how AIs judge themselves" ───────────────────────────────
+
+function Round2CTA({
+  critiquedCount,
+  onReveal,
+}: {
+  critiquedCount: number;
+  onReveal: () => void;
+}) {
+  const allLoaded = critiquedCount === 10;
+
+  return (
+    <div className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-600">
+      <div className="relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 via-card to-primary/5 p-6">
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent pointer-events-none" />
+        <div className="relative flex flex-col sm:flex-row items-center gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold uppercase tracking-widest text-primary/70 mb-1">Round 1 Complete</div>
+            <h2 className="text-lg md:text-xl font-serif font-bold text-foreground">
+              All 10 AIs have answered. Now watch them judge themselves.
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              {allLoaded
+                ? "Self-critiques are ready — reveal instantly."
+                : `Loading self-critiques in background… ${critiquedCount}/10 ready`}
+            </p>
+          </div>
+          <Button
+            size="lg"
+            onClick={onReveal}
+            className="shrink-0 gap-2 font-semibold px-6 shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-shadow"
+          >
+            {!allLoaded && critiquedCount > 0 && (
+              <span className="text-xs font-mono opacity-70">{critiquedCount}/10</span>
+            )}
+            See how AIs judge themselves
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+        {!allLoaded && (
+          <div className="mt-4 h-1 rounded-full bg-border/40 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary/50 transition-all duration-500"
+              style={{ width: `${(critiquedCount / 10) * 100}%` }}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function StreamingResults() {
   const search = useSearch();
@@ -265,7 +438,9 @@ export default function StreamingResults() {
   const [verdict, setVerdict] = useState<VerdictPayload | null>(null);
   const [isCached, setIsCached] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showRound2, setShowRound2] = useState(false);
 
+  const streamStartRef = useRef<number>(Date.now());
   const round2DataRef = useRef<ModelCard[]>([]);
   const verdictRef = useRef<VerdictPayload | null>(null);
 
@@ -280,6 +455,7 @@ export default function StreamingResults() {
       return;
     }
 
+    streamStartRef.current = Date.now();
     const controller = new AbortController();
 
     async function run() {
@@ -317,13 +493,13 @@ export default function StreamingResults() {
             let data: Record<string, unknown>;
             try {
               data = JSON.parse(dLine.slice(5).trim()) as Record<string, unknown>;
-            } catch {
-              continue;
-            }
+            } catch { continue; }
 
             switch (ev) {
               case "cached":
                 setIsCached(true);
+                // For cached replays, auto-show round2 since it's all instant
+                setShowRound2(true);
                 break;
 
               case "status": {
@@ -334,16 +510,24 @@ export default function StreamingResults() {
                 break;
               }
 
-              case "round1":
+              case "round1": {
+                const elapsed = (Date.now() - streamStartRef.current) / 1000;
                 setPhase("round1");
                 setCards((prev) =>
                   prev.map((c) =>
                     c.key === data.model
-                      ? { ...c, cardPhase: "answered", answer: data.answer as string, isGeneric: data.isGeneric as boolean }
+                      ? {
+                          ...c,
+                          cardPhase: "answered",
+                          answer: data.answer as string,
+                          isGeneric: data.isGeneric as boolean,
+                          responseTime: elapsed,
+                        }
                       : c,
                   ),
                 );
                 break;
+              }
 
               case "round2":
                 setCards((prev) => {
@@ -378,7 +562,6 @@ export default function StreamingResults() {
                 setPhase("done");
                 const id = data.id as string;
 
-                // Build ComparisonResult from accumulated state for localStorage
                 const finalCards = round2DataRef.current;
                 const finalVerdict = verdictRef.current;
                 if (finalCards.length > 0 && finalVerdict) {
@@ -411,14 +594,13 @@ export default function StreamingResults() {
                   try { saveResult(compResult); } catch {}
                 }
 
-                // Navigate to final results page (wouter replaceState — no back-button entry)
                 setLocation(`/results/${id}`, { replace: true });
                 break;
               }
 
               case "error":
                 setPhase("error");
-                setErrorMessage(data.message as string ?? "An error occurred.");
+                setErrorMessage((data.message as string) ?? "An error occurred.");
                 break;
             }
           }
@@ -434,12 +616,19 @@ export default function StreamingResults() {
     return () => controller.abort();
   }, [question]);
 
-  // Sort critiqued cards by score for the verdict section
+  // ── Derived state ──────────────────────────────────────────────────────────
+  const answeredCount = cards.filter((c) => c.cardPhase !== "waiting").length;
+  const critiquedCount = cards.filter((c) => c.cardPhase === "critiqued").length;
+  const round1AllDone = answeredCount === 10;
+
+  const { slowThreshold } = computeSpeedMeta(cards);
+
+  // Sort critiqued cards by score for final verdict view
   const sortedCards = [...cards].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
   const winnerCard = sortedCards.find((c) => c.cardPhase === "critiqued");
 
-  const answeredCount = cards.filter((c) => c.cardPhase !== "waiting").length;
-  const critiquedCount = cards.filter((c) => c.cardPhase === "critiqued").length;
+  // Card render order: if verdict arrived, sort by score; otherwise preserve submission order
+  const displayCards = verdict ? sortedCards : cards;
 
   if (phase === "error") {
     return (
@@ -458,9 +647,13 @@ export default function StreamingResults() {
         <div>
           <div className="text-sm font-mono text-muted-foreground mb-2 flex items-center gap-2 flex-wrap">
             {isCached && <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold">Cached result</span>}
-            <span>{cards.filter(c => c.cardPhase !== "waiting").length}/10 answered</span>
-            <span className="w-1 h-1 rounded-full bg-border" />
-            <span>{cards.filter(c => c.cardPhase === "critiqued").length}/10 self-critiqued</span>
+            <span>{answeredCount}/10 answered</span>
+            {showRound2 && (
+              <>
+                <span className="w-1 h-1 rounded-full bg-border" />
+                <span>{critiquedCount}/10 self-critiqued</span>
+              </>
+            )}
           </div>
           <h1 className="text-2xl md:text-3xl font-serif font-bold text-foreground leading-tight max-w-3xl">
             "{question}"
@@ -476,24 +669,45 @@ export default function StreamingResults() {
         </Button>
       </div>
 
-      {/* Progress bar */}
-      {phase !== "done" && (
+      {/* Round 1 progress bar — hidden once all answered */}
+      {!round1AllDone && (
         <div className="mb-8 space-y-2">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">{PHASE_LABELS[phase]}</span>
-            <span className="text-primary font-mono text-xs">
-              {phase === "round1" ? `${answeredCount}/10` : phase === "round2" ? `${critiquedCount}/10` : ""}
+            <span className="text-muted-foreground">
+              {phase === "connecting" ? "Connecting to 10 AI models..." : "Round 1: querying all 10 models simultaneously..."}
             </span>
+            <span className="text-primary font-mono text-xs">{answeredCount}/10</span>
           </div>
           <div className="h-1.5 rounded-full bg-border/40 overflow-hidden">
             <div
               className="h-full rounded-full bg-primary transition-all duration-500"
-              style={{
-                width: phase === "connecting" ? "2%" :
-                  phase === "round1" ? `${5 + (answeredCount / 10) * 35}%` :
-                  phase === "round2" ? `${40 + (critiquedCount / 10) * 40}%` :
-                  phase === "verdict" ? "90%" : "100%",
-              }}
+              style={{ width: phase === "connecting" ? "2%" : `${5 + (answeredCount / 10) * 90}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Speed strip — after all round 1 done */}
+      {round1AllDone && <SpeedStrip cards={cards} />}
+
+      {/* Round 2 CTA — after all answered, before user clicks reveal */}
+      {round1AllDone && !showRound2 && (
+        <Round2CTA critiquedCount={critiquedCount} onReveal={() => setShowRound2(true)} />
+      )}
+
+      {/* Round 2 progress (after reveal, while still loading) */}
+      {showRound2 && critiquedCount < 10 && phase !== "done" && (
+        <div className="mb-6 space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">
+              {phase === "verdict" ? "Calculating final verdict..." : "Round 2: AIs examining each other..."}
+            </span>
+            <span className="text-primary font-mono text-xs">{critiquedCount}/10</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-border/40 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-500"
+              style={{ width: phase === "verdict" ? "95%" : `${(critiquedCount / 10) * 90}%` }}
             />
           </div>
         </div>
@@ -516,8 +730,8 @@ export default function StreamingResults() {
         </div>
       )}
 
-      {/* Final Verdict — only shown when verdict data has arrived */}
-      {verdict && (
+      {/* Final Verdict */}
+      {verdict && showRound2 && (
         <div className="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-600">
           <Card className="border-primary/40 bg-card shadow-lg shadow-primary/5">
             <CardHeader className="bg-primary/5 border-b border-primary/10">
@@ -532,7 +746,7 @@ export default function StreamingResults() {
                 <div>
                   <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Score Ranking</div>
                   <div className="space-y-2">
-                    {sortedCards.filter(c => c.score !== undefined).slice(0, 10).map((c, i) => (
+                    {sortedCards.filter((c) => c.score !== undefined).map((c, i) => (
                       <div key={c.key} className="flex items-center gap-2">
                         <span className="text-[10px] font-mono text-muted-foreground w-4 shrink-0">#{i + 1}</span>
                         <span className="text-xs font-semibold w-28 shrink-0 truncate" style={{ color: c.color }}>{c.displayName}</span>
@@ -583,20 +797,35 @@ export default function StreamingResults() {
         </div>
       )}
 
-      {/* Model cards grid — always show all 10 slots */}
+      {/* Model cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-        {(verdict ? sortedCards : cards).map((card, i) => {
-          if (card.cardPhase === "critiqued") {
-            const critiquedSorted = (verdict ? sortedCards : cards).filter(c => c.cardPhase === "critiqued");
-            const rank = critiquedSorted.findIndex(c => c.key === card.key);
+        {displayCards.map((card, i) => {
+          const isSlow = (card.responseTime ?? 0) > slowThreshold;
+
+          // Waiting: skeleton
+          if (card.cardPhase === "waiting") {
+            return <ThinkingCard key={card.key} card={card} streamStart={streamStartRef.current} />;
+          }
+
+          // Critiqued + round2 revealed: show full card
+          if (card.cardPhase === "critiqued" && showRound2) {
+            const critiquedSorted = displayCards.filter((c) => c.cardPhase === "critiqued");
+            const rank = critiquedSorted.findIndex((c) => c.key === card.key);
             return (
-              <FullCard key={card.key} card={card} rank={rank} question={question} onCopy={handleCopy} />
+              <FullCard key={card.key} card={card} rank={rank} question={question} isSlow={isSlow} onCopy={handleCopy} />
             );
           }
-          if (card.cardPhase === "answered") {
-            return <AnsweredCard key={card.key} card={card} onCopy={handleCopy} />;
-          }
-          return <ThinkingCard key={card.key} card={card} />;
+
+          // Answered or critiqued-but-hidden
+          return (
+            <AnsweredCard
+              key={card.key}
+              card={card}
+              isSlow={isSlow}
+              showCritiqueSpinner={showRound2 && card.cardPhase === "answered"}
+              onCopy={handleCopy}
+            />
+          );
         })}
       </div>
     </div>
