@@ -133,20 +133,27 @@ export default function Results() {
   }, []);
 
   // ── Voice: speak one utterance, call onEnd when done ──────────────────
-  const speakSingle = useCallback((text: string, onEnd: () => void) => {
+  // Chrome bug: calling speak() inside an onend handler is silently dropped.
+  // Fix: always defer via setTimeout so we're never inside the onend call stack.
+  const speakSingle = useCallback((text: string, onEnd: () => void, cancelFirst = false) => {
     if (!window.speechSynthesis || !activeReadRef.current) return;
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = speechLang;
-    u.rate = 0.92;
-    u.pitch = 1.05;
-    const voice = pickVoice(speechLang);
-    if (voice) u.voice = voice;
-    u.onend = () => { if (activeReadRef.current) onEnd(); };
-    u.onerror = (e) => {
-      if (activeReadRef.current && e.error !== "interrupted" && e.error !== "canceled") onEnd();
+    const doSpeak = () => {
+      if (!activeReadRef.current) return;
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = speechLang;
+      u.rate = 0.92;
+      u.pitch = 1.05;
+      const voice = pickVoice(speechLang);
+      if (voice) u.voice = voice;
+      u.onend = () => { if (activeReadRef.current) onEnd(); };
+      u.onerror = (e) => {
+        if (activeReadRef.current && e.error !== "interrupted" && e.error !== "canceled") onEnd();
+      };
+      if (cancelFirst) window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
     };
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
+    // Always step out of any onend call stack before speaking
+    setTimeout(doSpeak, 60);
   }, [speechLang]);
 
   // ── Voice: listen for yes/no (5-second timeout) ───────────────────────
@@ -204,6 +211,7 @@ export default function Results() {
   // ── Voice: main orchestration ──────────────────────────────────────────
   const startAutoRead = useCallback(() => {
     if (!result || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel(); // clear anything already queued
     activeReadRef.current = true;
     hasAutoReadRef.current = true;
 
