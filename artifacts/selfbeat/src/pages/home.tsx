@@ -4,16 +4,41 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Activity, ArrowRight, AlertCircle, Mic, MicOff, X } from "lucide-react";
 
+type SR = typeof SpeechRecognition;
+
+function getSR(): SR | null {
+  return (
+    (window as unknown as { SpeechRecognition?: SR }).SpeechRecognition ||
+    (window as unknown as { webkitSpeechRecognition?: SR }).webkitSpeechRecognition ||
+    null
+  );
+}
+
+function pickFemaleVoice(): SpeechSynthesisVoice | null {
+  const voices = window.speechSynthesis?.getVoices() ?? [];
+  const preferred = ["Google US English Female", "Microsoft Zira", "Samantha", "Karen", "Victoria", "Moira", "Fiona"];
+  return (
+    voices.find((v) => preferred.some((p) => v.name.includes(p))) ||
+    voices.find((v) => v.lang.startsWith("en") && v.name.toLowerCase().includes("female")) ||
+    voices.find((v) => v.lang.startsWith("en-US")) ||
+    voices[0] ||
+    null
+  );
+}
+
 export default function Home() {
   const [query, setQuery] = useState("");
   const [, setLocation] = useLocation();
   const [isListening, setIsListening] = useState(false);
+  const [isGreeting, setIsGreeting] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const [countdown, setCountdown] = useState<number | null>(null);
+
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const transcriptRef = useRef("");
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const greetedRef = useRef(false);
 
   const exampleQuestions = [
     "What causes high blood pressure?",
@@ -21,12 +46,6 @@ export default function Home() {
     "What is the best diet for weight loss?",
     "Will AI replace human jobs?",
   ];
-
-  useEffect(() => {
-    const SR = (window as unknown as { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition
-      || (window as unknown as { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition;
-    if (SR) setVoiceSupported(true);
-  }, []);
 
   const cancelCountdown = useCallback(() => {
     if (countdownRef.current) {
@@ -36,38 +55,32 @@ export default function Home() {
     setCountdown(null);
   }, []);
 
-  const startCountdown = useCallback((q: string) => {
-    setCountdown(3);
-    let remaining = 3;
-    countdownRef.current = setInterval(() => {
-      remaining -= 1;
-      if (remaining <= 0) {
-        clearInterval(countdownRef.current!);
-        countdownRef.current = null;
-        setCountdown(null);
-        setLocation(`/stream?q=${encodeURIComponent(q)}`);
-      } else {
-        setCountdown(remaining);
-      }
-    }, 1000);
-  }, [setLocation]);
+  const startCountdown = useCallback(
+    (q: string) => {
+      setCountdown(3);
+      let remaining = 3;
+      countdownRef.current = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) {
+          clearInterval(countdownRef.current!);
+          countdownRef.current = null;
+          setCountdown(null);
+          setLocation(`/stream?q=${encodeURIComponent(q)}`);
+        } else {
+          setCountdown(remaining);
+        }
+      }, 1000);
+    },
+    [setLocation]
+  );
 
-  const toggleListening = () => {
-    const SR = (window as unknown as { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition
-      || (window as unknown as { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition;
+  const startListening = useCallback(() => {
+    const SR = getSR();
     if (!SR) return;
-
-    // If counting down, cancel and allow re-record
-    cancelCountdown();
-
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-      return;
-    }
 
     setVoiceError("");
     transcriptRef.current = "";
+
     const recognition = new SR();
     recognition.continuous = false;
     recognition.interimResults = true;
@@ -97,11 +110,84 @@ export default function Home() {
     recognitionRef.current = recognition;
     recognition.start();
     setIsListening(true);
+  }, [startCountdown]);
+
+  const speakGreetingThenListen = useCallback(() => {
+    if (!window.speechSynthesis) {
+      startListening();
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(
+      "Ask anything. Watch AI judge itself."
+    );
+    utterance.pitch = 1.15;
+    utterance.rate = 0.88;
+    utterance.volume = 0.95;
+
+    const voice = pickFemaleVoice();
+    if (voice) utterance.voice = voice;
+
+    setIsGreeting(true);
+
+    utterance.onend = () => {
+      setIsGreeting(false);
+      startListening();
+    };
+
+    utterance.onerror = () => {
+      setIsGreeting(false);
+      startListening();
+    };
+
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  }, [startListening]);
+
+  useEffect(() => {
+    const SR = getSR();
+    if (SR) setVoiceSupported(true);
+  }, []);
+
+  // Auto-play greeting then open mic on first mount
+  useEffect(() => {
+    if (greetedRef.current) return;
+    greetedRef.current = true;
+
+    const run = () => speakGreetingThenListen();
+
+    if (!window.speechSynthesis) return;
+
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length > 0) {
+      setTimeout(run, 700);
+    } else {
+      let done = false;
+      window.speechSynthesis.onvoiceschanged = () => {
+        if (done) return;
+        done = true;
+        window.speechSynthesis.onvoiceschanged = null;
+        setTimeout(run, 300);
+      };
+      // Fallback if onvoiceschanged never fires
+      setTimeout(() => {
+        if (!done) { done = true; run(); }
+      }, 1400);
+    }
+  }, [speakGreetingThenListen]);
+
+  const toggleListening = () => {
+    cancelCountdown();
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    speakGreetingThenListen();
   };
 
   const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setQuery(e.target.value);
-    // Typing cancels the voice countdown so the user can edit freely
     if (countdown !== null) cancelCountdown();
   };
 
@@ -113,6 +199,9 @@ export default function Home() {
     if (isListening) recognitionRef.current?.stop();
     setLocation(`/stream?q=${encodeURIComponent(q)}`);
   };
+
+  const statusPhase: "greeting" | "listening" | "countdown" | "idle" =
+    isGreeting ? "greeting" : isListening ? "listening" : countdown !== null ? "countdown" : "idle";
 
   return (
     <main className="flex flex-col items-center justify-center min-h-[calc(100vh-16rem)] px-4 py-12">
@@ -153,24 +242,34 @@ export default function Home() {
               placeholder="Ask anything. Watch AI judge itself."
               className="w-full h-16 pl-6 pr-4 text-lg rounded-xl border-border/50 bg-background/80 backdrop-blur-sm focus-visible:ring-primary/50"
               aria-label="Type or speak your question here"
-              aria-describedby="voice-hint"
+              aria-describedby="voice-status"
               autoComplete="off"
             />
 
-            {/* Mic button */}
+            {/* Mic / greeting indicator button */}
             {voiceSupported && (
               <button
                 type="button"
                 onClick={toggleListening}
-                aria-label={isListening ? "Stop recording" : countdown !== null ? "Cancel countdown and re-record" : "Start voice input"}
+                aria-label={
+                  isGreeting
+                    ? "Playing voice greeting"
+                    : isListening
+                    ? "Stop recording"
+                    : countdown !== null
+                    ? "Cancel countdown and re-record"
+                    : "Play greeting and start voice input"
+                }
                 aria-pressed={isListening}
                 className={`
                   shrink-0 h-12 w-12 rounded-xl flex items-center justify-center border transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none
-                  ${isListening
+                  ${isGreeting
+                    ? "bg-primary/20 border-primary/40 text-primary animate-pulse"
+                    : isListening
                     ? "bg-red-500 border-red-400 text-white shadow-lg shadow-red-500/40 animate-pulse"
                     : countdown !== null
-                      ? "bg-amber-500 border-amber-400 text-white"
-                      : "bg-card border-border/50 text-muted-foreground hover:text-primary hover:border-primary/50"
+                    ? "bg-amber-500 border-amber-400 text-white"
+                    : "bg-card border-border/50 text-muted-foreground hover:text-primary hover:border-primary/50"
                   }
                 `}
               >
@@ -191,16 +290,22 @@ export default function Home() {
         </form>
 
         {/* Status area */}
-        <div aria-live="polite" aria-atomic="true" className="mt-3 min-h-[2rem] flex items-center justify-center">
-          {isListening && (
+        <div id="voice-status" aria-live="polite" aria-atomic="true" className="mt-3 min-h-[2rem] flex items-center justify-center">
+
+          {statusPhase === "greeting" && (
+            <p className="text-sm text-primary/80 font-medium animate-pulse">
+              Speaking... the mic opens right after
+            </p>
+          )}
+
+          {statusPhase === "listening" && (
             <p className="text-sm text-red-400 font-medium animate-pulse">
               Listening... speak your question now
             </p>
           )}
 
-          {!isListening && countdown !== null && (
+          {statusPhase === "countdown" && countdown !== null && (
             <div className="flex items-center gap-3">
-              {/* Countdown ring */}
               <div className="relative w-8 h-8 shrink-0">
                 <svg className="w-8 h-8 -rotate-90" viewBox="0 0 32 32" aria-hidden="true">
                   <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-border/40" />
@@ -217,7 +322,7 @@ export default function Home() {
                 </span>
               </div>
               <p className="text-sm text-amber-400 font-medium">
-                Submitting in {countdown}s — keep speaking or
+                Submitting in {countdown}s — or
               </p>
               <button
                 type="button"
@@ -231,17 +336,17 @@ export default function Home() {
             </div>
           )}
 
-          {!isListening && countdown === null && !voiceError && voiceSupported && (
-            <p id="voice-hint" className="text-xs text-muted-foreground/60">
-              Type and press Enter, or tap the microphone to speak — submits after 3 seconds
+          {statusPhase === "idle" && !voiceError && voiceSupported && (
+            <p className="text-xs text-muted-foreground/60">
+              Just speak — the mic opens automatically, or tap it to replay
             </p>
           )}
-          {!isListening && countdown === null && !voiceError && !voiceSupported && (
-            <p id="voice-hint" className="text-xs text-muted-foreground/60">
+          {statusPhase === "idle" && !voiceError && !voiceSupported && (
+            <p className="text-xs text-muted-foreground/60">
               Type your question and press Enter to submit
             </p>
           )}
-          {!isListening && countdown === null && voiceError && (
+          {statusPhase === "idle" && voiceError && (
             <p className="text-sm text-amber-400">{voiceError}</p>
           )}
         </div>
