@@ -125,7 +125,7 @@ export function generateMockResult(question: string): ComparisonResult {
     },
     isMedical,
     physicianNote: isMedical
-      ? "This is a mock fallback result. For medical questions, always consult a qualified healthcare professional. Do not use any AI response as a substitute for medical advice."
+      ? "[Physician note coming soon. This section will contain verified medical insights written by our physician founder.]"
       : undefined,
     source: 'mock',
     cached: false,
