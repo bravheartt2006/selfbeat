@@ -104,7 +104,7 @@ components:
         - question
     SelfbeatModelKey:
       type: string
-      enum: [chatgpt, claude, gemini, deepseek, grok, mistral, llama, perplexity, cohere, qwen]
+      enum: [chatgpt, claude, gemini, deepseek, grok, mistral, llama, perplexity, cohere, qwen, copilot]
     SelfbeatModelResponse:
       type: object
       properties:
