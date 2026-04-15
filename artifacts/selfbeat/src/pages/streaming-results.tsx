@@ -742,6 +742,38 @@ export default function StreamingResults() {
             </CardHeader>
             <CardContent className="pt-6 space-y-4">
               <p className="text-lg leading-relaxed text-foreground/90">{verdict.verdictDetails.summary}</p>
+
+              {/* Winner answer spotlight */}
+              {winnerCard?.answer && (() => {
+                const hex = winnerCard.color;
+                return (
+                  <div className="relative overflow-hidden rounded-2xl border-2 p-5 animate-in fade-in duration-500"
+                    style={{ borderColor: hex + "55", background: `linear-gradient(135deg, ${hex}10 0%, transparent 60%)` }}>
+                    <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full blur-3xl pointer-events-none opacity-30" style={{ backgroundColor: hex }} />
+                    <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full blur-2xl pointer-events-none opacity-20" style={{ backgroundColor: hex }} />
+                    <div className="relative">
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full shadow-lg"
+                          style={{ backgroundColor: hex + "25", border: `1px solid ${hex}40` }}>
+                          <Trophy className="h-4 w-4" style={{ color: hex }} />
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Winning Answer</div>
+                          <div className="text-sm font-bold leading-none" style={{ color: hex }}>
+                            {winnerCard.displayName}
+                            <span className="ml-2 text-[10px] font-mono opacity-70">{winnerCard.score?.toFixed(1)}/10</span>
+                          </div>
+                        </div>
+                      </div>
+                      <blockquote className="text-sm leading-relaxed text-foreground/90 pl-4"
+                        style={{ borderLeft: `3px solid ${hex}80` }}>
+                        {winnerCard.answer}
+                      </blockquote>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="pt-4 border-t border-border/40 grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
                   <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Score Ranking</div>

@@ -158,6 +158,45 @@ export default function Results() {
             <p className="text-lg leading-relaxed text-foreground/90">
               {result.verdictDetails?.summary ?? result.verdict}
             </p>
+
+            {/* Winner answer spotlight */}
+            {winner && (
+              <div className="relative overflow-hidden rounded-2xl border-2 p-5"
+                style={{
+                  borderColor: getModelMeta(winner.model).color + "55",
+                  background: `linear-gradient(135deg, ${getModelMeta(winner.model).color}10 0%, transparent 60%)`,
+                }}>
+                {/* Celebration glow */}
+                <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full blur-3xl pointer-events-none opacity-30"
+                  style={{ backgroundColor: getModelMeta(winner.model).color }} />
+                <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full blur-2xl pointer-events-none opacity-20"
+                  style={{ backgroundColor: getModelMeta(winner.model).color }} />
+
+                <div className="relative">
+                  {/* Winner label */}
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full shadow-lg"
+                      style={{ backgroundColor: getModelMeta(winner.model).color + "25", border: `1px solid ${getModelMeta(winner.model).color}40` }}>
+                      <Trophy className="h-4 w-4" style={{ color: getModelMeta(winner.model).color }} />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Winning Answer</div>
+                      <div className="text-sm font-bold leading-none" style={{ color: getModelMeta(winner.model).color }}>
+                        {winner.displayName || getModelMeta(winner.model).name}
+                        <span className="ml-2 text-[10px] font-mono opacity-70">{winner.score.toFixed(1)}/10</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Answer text */}
+                  <blockquote className="text-sm leading-relaxed text-foreground/90 pl-4"
+                    style={{ borderLeft: `3px solid ${getModelMeta(winner.model).color}80` }}>
+                    {winner.answer}
+                  </blockquote>
+                </div>
+              </div>
+            )}
+
             {result.verdictDetails && (
               <div className="pt-4 border-t border-border/40 grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {/* Score comparison */}
