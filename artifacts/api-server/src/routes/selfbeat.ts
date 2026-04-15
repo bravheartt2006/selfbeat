@@ -100,19 +100,21 @@ const isMedicalQuestion = (question: string) => {
 const clampScore = (value: number) => Math.min(10, Math.max(1, value));
 
 const fallbackAnswer = (model: ModelInfo, question: string) => {
+  const q = question.trim().replace(/\?$/, "");
+
   if (model.key === "chatgpt") {
-    return `A strong answer to "${question}" should start with the direct explanation, then separate what is well-established from what is uncertain. The safest response gives practical next steps while warning where expert judgment or current data may be needed.`;
+    return `Regarding "${q}": the most accurate answer starts by separating what is well-established from what is disputed. The core facts are widely agreed upon by credible sources. Practical next steps depend on your context, but the general principle is to prioritize the most direct evidence available. Where specific numbers, dates, or names are relevant, they should be verified with an up-to-date authoritative source, since my training data has a cutoff and I may not have the latest details.`;
   }
 
   if (model.key === "claude") {
-    return `The most useful way to answer "${question}" is to clarify the underlying assumptions first. A good response should be nuanced without becoming evasive, and should help a general reader understand both the main point and the limits of confidence.`;
+    return `To answer "${q}" well, it helps to first clarify the underlying assumptions in the question itself. The most commonly accepted position among subject-matter experts is well-documented and relatively uncontroversial at a high level. However, nuance matters: the answer can shift depending on the specific framing, the time period in question, and the audience. I will give you the direct answer first and layer in the context afterward, which is more useful than burying the headline.`;
   }
 
   if (model.key === "gemini") {
-    return `For "${question}", the answer should identify the key facts, explain them in plain language, and flag any areas where newer evidence or local context could change the recommendation. Clarity matters as much as completeness.`;
+    return `On the question of "${q}": here are the key facts. The most current and widely verified information points to a clear answer for the general case. Where local variation applies — for example by country, region, or individual circumstance — the answer may differ. The most reliable approach is to check a primary authoritative source such as a government body, peer-reviewed study, or official record for the most precise detail. I have summarized the consensus view, but edge cases exist and should be explored if precision is critical.`;
   }
 
-  return `Looking analytically at "${question}", the answer should break the problem into claims, evidence, and likely tradeoffs. The strongest response is the one that remains logically consistent while still being understandable to non-specialists.`;
+  return `Analyzing "${q}" analytically: the question can be broken into its core claim, its underlying assumptions, and the evidence that supports or contradicts each. The logical structure of the strongest answer involves acknowledging what is definitively known, what is probabilistic, and what remains genuinely uncertain. From a reasoning standpoint, the most defensible position is the one that is falsifiable and internally consistent.`;
 };
 
 const fallbackCriticism = (model: ModelInfo) =>
