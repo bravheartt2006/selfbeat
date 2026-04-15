@@ -1,16 +1,12 @@
 import { Activity } from "lucide-react";
-import { LANGUAGES, LangCode, STORAGE_KEY } from "@/lib/i18n";
+import { LANGUAGES, LangCode } from "@/lib/i18n";
 import { useLanguage } from "@/lib/language-context";
-import { useLocation } from "wouter";
 
 export default function LanguageSelect() {
   const { setLang } = useLanguage();
-  const [, setLocation] = useLocation();
 
   const choose = (code: LangCode) => {
     setLang(code);
-    localStorage.setItem(STORAGE_KEY, code);
-    setLocation("/");
   };
 
   return (

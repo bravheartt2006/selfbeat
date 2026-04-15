@@ -7,18 +7,21 @@ interface LanguageContextValue {
   t: (key: TranslationKey) => string;
   dir: "ltr" | "rtl";
   speechLang: string;
+  hasChosen: boolean;
 }
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<LangCode>(() => {
-    return (localStorage.getItem(STORAGE_KEY) as LangCode) || "en";
-  });
+  const stored = localStorage.getItem(STORAGE_KEY) as LangCode | null;
+
+  const [lang, setLangState] = useState<LangCode>(stored || "en");
+  const [hasChosen, setHasChosen] = useState<boolean>(!!stored);
 
   const setLang = (code: LangCode) => {
     localStorage.setItem(STORAGE_KEY, code);
     setLangState(code);
+    setHasChosen(true);
   };
 
   const meta = getLangMeta(lang);
@@ -31,7 +34,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const t = (key: TranslationKey) => translate(lang, key);
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang, t, dir: meta.dir, speechLang: meta.speechLang }}>
+    <LanguageContext.Provider value={{ lang, setLang, t, dir: meta.dir, speechLang: meta.speechLang, hasChosen }}>
       {children}
     </LanguageContext.Provider>
   );

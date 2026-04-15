@@ -11,17 +11,16 @@ import About from "@/pages/about";
 import LanguageSelect from "@/pages/language-select";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-import { LanguageProvider } from "@/lib/language-context";
-import { STORAGE_KEY } from "@/lib/i18n";
+import { LanguageProvider, useLanguage } from "@/lib/language-context";
 
 const queryClient = new QueryClient();
 
 function Router() {
-  const hasLang = !!localStorage.getItem(STORAGE_KEY);
+  const { hasChosen } = useLanguage();
 
   return (
     <div className="flex flex-col min-h-[100dvh]">
-      {!hasLang ? (
+      {!hasChosen ? (
         <LanguageSelect />
       ) : (
         <>
@@ -33,7 +32,6 @@ function Router() {
               <Route path="/results/:id" component={Results} />
               <Route path="/leaderboard" component={Leaderboard} />
               <Route path="/about" component={About} />
-              <Route path="/language" component={LanguageSelect} />
               <Route component={NotFound} />
             </Switch>
           </main>
