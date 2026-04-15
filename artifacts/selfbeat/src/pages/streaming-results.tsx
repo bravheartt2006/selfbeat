@@ -229,20 +229,20 @@ function AnsweredCard({
             <TimerBadge responseTime={card.responseTime} isSlow={isSlow} />
           )}
         </div>
-        {card.isGeneric && (
-          <div className="mt-2 flex items-start gap-1.5 text-amber-400">
-            <Database className="h-3 w-3 shrink-0 mt-0.5" />
-            <span className="text-[10px] font-semibold">Response may be cached — not specific to this question</span>
-          </div>
-        )}
       </CardHeader>
       <CardContent className="pt-4 flex-1 space-y-3">
-        <div>
-          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+        <div className="rounded-xl p-3.5 bg-muted/10 border border-muted/30">
+          <div className="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5 text-muted-foreground">
             <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold text-background shrink-0" style={{ backgroundColor: hex }}>1</span>
-            Round 1: Initial Answer
+            Answer
           </div>
           <p className="text-sm leading-relaxed text-foreground/90">{card.answer}</p>
+          {card.isGeneric && (
+            <div className="flex items-start gap-2 mt-2 pt-2 border-t border-amber-500/20">
+              <Database className="h-3 w-3 shrink-0 mt-0.5 text-amber-400" />
+              <span className="text-[10px] font-semibold text-amber-400 leading-snug">Response may be cached — not specific to this question</span>
+            </div>
+          )}
         </div>
         {showCritiqueSpinner && (
           <div className="rounded-xl p-3 border border-muted/30 bg-muted/10">
@@ -321,29 +321,30 @@ function FullCard({
         </div>
       </CardHeader>
 
-      <CardContent className="pt-4 flex-1 space-y-4">
-        <div>
-          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+      <CardContent className="pt-4 flex-1 space-y-3">
+        {/* Answer box */}
+        <div className="rounded-xl p-3.5 bg-muted/10 border border-muted/30">
+          <div className="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5 text-muted-foreground">
             <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold text-background shrink-0" style={{ backgroundColor: hex }}>1</span>
-            Round 1: Initial Answer
+            Answer
           </div>
           <p className="text-sm leading-relaxed text-foreground/90">{card.answer}</p>
+          {card.isGeneric && (
+            <div className="flex items-start gap-2 mt-2 pt-2 border-t border-amber-500/20">
+              <Database className="h-3 w-3 shrink-0 mt-0.5 text-amber-400" />
+              <span className="text-[10px] font-semibold text-amber-400 leading-snug">Response may be cached — not specific to this question</span>
+            </div>
+          )}
         </div>
 
-        {card.isGeneric && (
-          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-400">
-            <Database className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            <span className="text-[11px] font-semibold leading-snug">Response may be cached — not specific to this question</span>
-          </div>
-        )}
-
+        {/* Self-Critique box */}
         <div className="rounded-xl p-3.5 animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ border: `1px solid ${borderTint}`, backgroundColor: bgTint }}>
-          <div className="text-[10px] font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1.5" style={{ color: hex }}>
+          <div className="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5" style={{ color: hex }}>
             <MessageSquareQuote className="h-3 w-3 shrink-0" />
-            Round 2: Selfbeat Analysis
+            Self-Critique
           </div>
           {card.declined ? (
-            <div className="flex items-start gap-2 mt-1">
+            <div className="flex items-start gap-2">
               <XCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
               <div>
                 <p className="text-sm font-semibold text-rose-400 leading-snug">This AI declined to self-evaluate on this question</p>

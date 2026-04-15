@@ -311,33 +311,30 @@ export default function Results() {
                 </div>
               </CardHeader>
 
-              <CardContent className="pt-4 flex-1 space-y-4">
+              <CardContent className="pt-4 flex-1 space-y-3">
                 {/* Round 1 Answer */}
-                <div>
-                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                <div className="rounded-xl p-3.5 bg-muted/10 border border-muted/30">
+                  <div className="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5 text-muted-foreground">
                     <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold text-background shrink-0" style={{ backgroundColor: hexColor }}>1</span>
-                    Round 1: Initial Answer
+                    Answer
                   </div>
                   <p className="text-sm leading-relaxed text-foreground/90">{res.answer}</p>
+                  {res.isGeneric && (
+                    <div className="flex items-start gap-2 mt-2 pt-2 border-t border-amber-500/20">
+                      <Database className="h-3 w-3 shrink-0 mt-0.5 text-amber-400" />
+                      <span className="text-[10px] font-semibold text-amber-400 leading-snug">Response may be cached — not specific to this question</span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Issue 3: Generic/cached response badge */}
-                {res.isGeneric && (
-                  <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-400">
-                    <Database className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                    <span className="text-[11px] font-semibold leading-snug">Response may be cached — not specific to this question</span>
-                  </div>
-                )}
-
-                {/* Round 2 Self-Criticism — always visible */}
+                {/* Round 2 Self-Criticism */}
                 <div className="rounded-xl p-3.5" style={{ border: `1px solid ${borderTint}`, backgroundColor: bgTint }}>
-                  <div className="text-[10px] font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1.5" style={{ color: hexColor }}>
-                    <MessageSquareQuote className="h-3 w-3 shrink-0" style={{ color: hexColor }} />
-                    Round 2: Selfbeat Analysis
+                  <div className="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5" style={{ color: hexColor }}>
+                    <MessageSquareQuote className="h-3 w-3 shrink-0" />
+                    Self-Critique
                   </div>
-                  {/* Issue 1: Declined badge replaces critique text */}
                   {res.declined ? (
-                    <div className="flex items-start gap-2 mt-1">
+                    <div className="flex items-start gap-2">
                       <XCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
                       <div>
                         <p className="text-sm font-semibold text-rose-400 leading-snug">This AI declined to self-evaluate on this question</p>
