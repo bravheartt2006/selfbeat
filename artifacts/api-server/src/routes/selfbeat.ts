@@ -149,6 +149,24 @@ const fallbackAnswer = (model: ModelInfo, question: string) => {
   return `Analyzing "${q}" analytically: the question can be broken into its core claim, its underlying assumptions, and the evidence that supports or contradicts each. The logical structure of the strongest answer involves acknowledging what is definitively known, what is probabilistic, and what remains genuinely uncertain. From a reasoning standpoint, the most defensible position is the one that is falsifiable and internally consistent.`;
 };
 
+// When a primary provider fails, use GPT-4o-mini to return a real answer
+async function backupAnswer(question: string): Promise<string> {
+  try {
+    const { openai } = await import("@workspace/integrations-openai-ai-server");
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{
+        role: "user",
+        content: `Answer this question clearly and accurately for a general audience. Keep the answer under 200 words.\n\nQuestion: ${question}`,
+      }],
+      max_completion_tokens: 500,
+    });
+    return response.choices[0]?.message?.content?.trim() || "";
+  } catch {
+    return "";
+  }
+}
+
 const fallbackCriticism = (model: ModelInfo) => {
   const others = "Claude, ChatGPT, Gemini, Grok, Mistral, Llama, Perplexity, Cohere, and Qwen"
     .replace(new RegExp(`${model.displayName},?\\s?`), "").trim();
@@ -387,17 +405,22 @@ async function createComparison(question: string, mode: "live" | "mock") {
       }
 
       try {
-        const answer = await askModel(model, answerPrompt(model));
+        const raw = await askModel(model, answerPrompt(model));
+        if (raw) {
+          return { model, answer: raw, status: "success" as const };
+        }
+        const backup = await backupAnswer(question);
         return {
           model,
-          answer: answer || fallbackAnswer(model, question),
-          status: answer ? ("success" as const) : ("fallback" as const),
-          error: answer ? undefined : "Provider returned an empty answer.",
+          answer: backup || fallbackAnswer(model, question),
+          status: "fallback" as const,
+          error: "Provider returned an empty answer.",
         };
       } catch (error) {
+        const backup = await backupAnswer(question);
         return {
           model,
-          answer: fallbackAnswer(model, question),
+          answer: backup || fallbackAnswer(model, question),
           status: "fallback" as const,
           error: error instanceof Error ? error.message : "Provider unavailable.",
         };
@@ -672,14 +695,25 @@ router.post("/selfbeat/comparisons/stream", async (req, res) => {
         let status: "success" | "fallback";
         let error: string | undefined;
 
+        let hasRealAnswer = false;
         try {
           const raw = await askModel(model, buildAnswerPrompt(model, question));
-          answer = raw || fallbackAnswer(model, question);
-          status = raw ? "success" : "fallback";
-          error = raw ? undefined : "Provider returned empty answer.";
+          if (raw) {
+            answer = raw;
+            status = "success";
+            hasRealAnswer = true;
+          } else {
+            const backup = await backupAnswer(question);
+            answer = backup || fallbackAnswer(model, question);
+            status = "fallback";
+            hasRealAnswer = !!backup;
+            error = "Provider returned empty answer.";
+          }
         } catch (err) {
-          answer = fallbackAnswer(model, question);
+          const backup = await backupAnswer(question);
+          answer = backup || fallbackAnswer(model, question);
           status = "fallback";
+          hasRealAnswer = !!backup;
           error = err instanceof Error ? err.message : "Provider unavailable.";
         }
 
@@ -689,7 +723,7 @@ router.post("/selfbeat/comparisons/stream", async (req, res) => {
           color: model.color,
           answer,
           status,
-          isGeneric: detectGenericResponse(answer, question, status),
+          isGeneric: detectGenericResponse(answer, question, hasRealAnswer ? "success" : "fallback"),
         });
 
         return { model, answer, status, error };
