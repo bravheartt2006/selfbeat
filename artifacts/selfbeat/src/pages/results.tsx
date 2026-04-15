@@ -185,27 +185,40 @@ export default function Results() {
     try { r.start(); } catch { clearTimeout(timeout); onNo(); }
   }, [speechLang]);
 
-  // ── Voice: continuous "stop" recognition while reading ────────────────
-  const startStopRecognition = useCallback((onStop: () => void) => {
+  // ── Voice: brief stop-check between answers ───────────────────────────
+  // Chrome mutes the mic while TTS is playing (echo prevention), so we can
+  // only listen for "stop" in the gaps BETWEEN answers. This gives a 1.2-second
+  // window after each answer ends to say "stop" before the next one begins.
+  const listenForStop = useCallback((onStop: () => void, onContinue: () => void) => {
     const SR = getSR();
-    if (!SR) return;
+    if (!SR || !activeReadRef.current) { onContinue(); return; }
     const STOP = ["stop", "arrêt", "arrêtez", "وقف", "停止", "fermati", "para", "halt", "basta"];
+    let done = false;
     const r = new SR() as SpeechRecognition;
-    r.continuous = true;
-    r.interimResults = true;
     r.lang = speechLang;
+    r.maxAlternatives = 3;
+    r.interimResults = true;
+    stopRecogRef.current = r;
+    const finish = (isStop: boolean) => {
+      if (done) return;
+      done = true;
+      try { r.abort(); } catch {}
+      if (!activeReadRef.current) return;
+      if (isStop) onStop(); else onContinue();
+    };
+    const timeout = setTimeout(() => finish(false), 1200);
     r.onresult = (e: SpeechRecognitionEvent) => {
       const texts = Array.from(e.results).flatMap(res =>
         Array.from(res).map(alt => (alt as SpeechRecognitionAlternative).transcript.toLowerCase())
       );
-      if (texts.some(txt => STOP.some(s => txt.includes(s)))) onStop();
+      if (texts.some(txt => STOP.some(s => txt.includes(s)))) {
+        clearTimeout(timeout);
+        finish(true);
+      }
     };
-    r.onerror = () => {};
-    r.onend = () => {
-      if (activeReadRef.current) try { r.start(); } catch {}
-    };
-    stopRecogRef.current = r;
-    try { r.start(); } catch {}
+    r.onerror = () => { clearTimeout(timeout); finish(false); };
+    r.onend = () => {};
+    try { r.start(); } catch { clearTimeout(timeout); onContinue(); }
   }, [speechLang]);
 
   // ── Voice: main orchestration ──────────────────────────────────────────
@@ -231,7 +244,6 @@ export default function Results() {
           () => {
             setReadPhase("all");
             let i = 0;
-            startStopRecognition(() => stopEverything());
             const readNext = () => {
               if (!activeReadRef.current || i >= rest.length) {
                 if (activeReadRef.current) {
@@ -243,7 +255,11 @@ export default function Results() {
               }
               const card = rest[i++];
               setReadingName(card.displayName || "");
-              speakSingle(`${card.displayName}, score ${card.score.toFixed(1)}. ${card.answer}`, readNext);
+              // After each answer ends: briefly open mic for "stop" (1.2 s window)
+              // Chrome blocks the mic during TTS — this gap is the only reliable time.
+              speakSingle(`${card.displayName}, score ${card.score.toFixed(1)}. ${card.answer}`, () => {
+                listenForStop(stopEverything, readNext);
+              });
             };
             readNext();
           },
@@ -255,7 +271,7 @@ export default function Results() {
         );
       });
     });
-  }, [result, speakSingle, listenForAnswer, startStopRecognition, stopEverything, t]);
+  }, [result, speakSingle, listenForAnswer, listenForStop, stopEverything, t]);
 
   // ── Auto-trigger when result first loads ──────────────────────────────
   useEffect(() => {
@@ -354,7 +370,7 @@ export default function Results() {
             {readPhase === "winner" && readingName && `Reading winner: ${readingName}`}
             {readPhase === "prompting" && "Would you like to hear all answers?"}
             {readPhase === "listening" && "Listening... say yes or no"}
-            {readPhase === "all" && readingName && `Reading: ${readingName}`}
+            {readPhase === "all" && readingName && `Reading: ${readingName} — say "stop" between answers`}
           </span>
           <button
             onClick={stopEverything}
