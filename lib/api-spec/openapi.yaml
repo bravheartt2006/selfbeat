@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: selfbeat
+    description: Selfbeat comparison operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,60 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /selfbeat/comparisons:
+    post:
+      operationId: createSelfbeatComparison
+      tags: [selfbeat]
+      summary: Create a Selfbeat AI comparison
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSelfbeatComparisonBody"
+      responses:
+        "200":
+          description: Comparison result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SelfbeatComparisonResult"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Comparison failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /selfbeat/comparisons/{id}:
+    get:
+      operationId: getSelfbeatComparison
+      tags: [selfbeat]
+      summary: Get a cached Selfbeat comparison
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cached comparison result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SelfbeatComparisonResult"
+        "404":
+          description: Comparison not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +89,147 @@ components:
           type: string
       required:
         - status
-
+    CreateSelfbeatComparisonBody:
+      type: object
+      properties:
+        question:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        mode:
+          type: string
+          enum: [live, mock]
+          default: live
+      required:
+        - question
+    SelfbeatModelKey:
+      type: string
+      enum: [chatgpt, claude, gemini, deepseek]
+    SelfbeatModelResponse:
+      type: object
+      properties:
+        model:
+          $ref: "#/components/schemas/SelfbeatModelKey"
+        displayName:
+          type: string
+        color:
+          type: string
+        answer:
+          type: string
+        selfCriticism:
+          type: string
+        score:
+          type: number
+        accuracyScore:
+          type: number
+        selfAwarenessScore:
+          type: number
+        status:
+          type: string
+          enum: [success, fallback]
+        error:
+          type: string
+      required:
+        - model
+        - displayName
+        - color
+        - answer
+        - selfCriticism
+        - score
+        - accuracyScore
+        - selfAwarenessScore
+        - status
+    SelfbeatVerdict:
+      type: object
+      properties:
+        summary:
+          type: string
+        bestAnswer:
+          type: string
+        clearestAnswer:
+          type: string
+        agreementPoints:
+          type: array
+          items:
+            type: string
+        disagreementPoints:
+          type: array
+          items:
+            type: string
+        overallWinner:
+          type: string
+        explanation:
+          type: string
+      required:
+        - summary
+        - bestAnswer
+        - clearestAnswer
+        - agreementPoints
+        - disagreementPoints
+        - overallWinner
+        - explanation
+    SelfbeatProviderStatus:
+      type: object
+      properties:
+        model:
+          $ref: "#/components/schemas/SelfbeatModelKey"
+        provider:
+          type: string
+        status:
+          type: string
+          enum: [live, fallback]
+        message:
+          type: string
+      required:
+        - model
+        - provider
+        - status
+        - message
+    SelfbeatComparisonResult:
+      type: object
+      properties:
+        id:
+          type: string
+        question:
+          type: string
+        timestamp:
+          type: number
+        responses:
+          type: array
+          items:
+            $ref: "#/components/schemas/SelfbeatModelResponse"
+        verdict:
+          type: string
+        verdictDetails:
+          $ref: "#/components/schemas/SelfbeatVerdict"
+        isMedical:
+          type: boolean
+        physicianNote:
+          type: string
+        source:
+          type: string
+          enum: [live, mock, mixed]
+        cached:
+          type: boolean
+        providerStatuses:
+          type: array
+          items:
+            $ref: "#/components/schemas/SelfbeatProviderStatus"
+      required:
+        - id
+        - question
+        - timestamp
+        - responses
+        - verdict
+        - verdictDetails
+        - isMedical
+        - source
+        - cached
+        - providerStatuses
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

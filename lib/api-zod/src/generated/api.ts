@@ -14,3 +14,108 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * @summary Create a Selfbeat AI comparison
+ */
+export const createSelfbeatComparisonBodyQuestionMax = 1000;
+
+export const createSelfbeatComparisonBodyModeDefault = `live`;
+
+export const CreateSelfbeatComparisonBody = zod.object({
+  question: zod.string().min(1).max(createSelfbeatComparisonBodyQuestionMax),
+  mode: zod
+    .enum(["live", "mock"])
+    .default(createSelfbeatComparisonBodyModeDefault),
+});
+
+export const CreateSelfbeatComparisonResponse = zod.object({
+  id: zod.string(),
+  question: zod.string(),
+  timestamp: zod.number(),
+  responses: zod.array(
+    zod.object({
+      model: zod.enum(["chatgpt", "claude", "gemini", "deepseek"]),
+      displayName: zod.string(),
+      color: zod.string(),
+      answer: zod.string(),
+      selfCriticism: zod.string(),
+      score: zod.number(),
+      accuracyScore: zod.number(),
+      selfAwarenessScore: zod.number(),
+      status: zod.enum(["success", "fallback"]),
+      error: zod.string().optional(),
+    }),
+  ),
+  verdict: zod.string(),
+  verdictDetails: zod.object({
+    summary: zod.string(),
+    bestAnswer: zod.string(),
+    clearestAnswer: zod.string(),
+    agreementPoints: zod.array(zod.string()),
+    disagreementPoints: zod.array(zod.string()),
+    overallWinner: zod.string(),
+    explanation: zod.string(),
+  }),
+  isMedical: zod.boolean(),
+  physicianNote: zod.string().optional(),
+  source: zod.enum(["live", "mock", "mixed"]),
+  cached: zod.boolean(),
+  providerStatuses: zod.array(
+    zod.object({
+      model: zod.enum(["chatgpt", "claude", "gemini", "deepseek"]),
+      provider: zod.string(),
+      status: zod.enum(["live", "fallback"]),
+      message: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get a cached Selfbeat comparison
+ */
+export const GetSelfbeatComparisonParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetSelfbeatComparisonResponse = zod.object({
+  id: zod.string(),
+  question: zod.string(),
+  timestamp: zod.number(),
+  responses: zod.array(
+    zod.object({
+      model: zod.enum(["chatgpt", "claude", "gemini", "deepseek"]),
+      displayName: zod.string(),
+      color: zod.string(),
+      answer: zod.string(),
+      selfCriticism: zod.string(),
+      score: zod.number(),
+      accuracyScore: zod.number(),
+      selfAwarenessScore: zod.number(),
+      status: zod.enum(["success", "fallback"]),
+      error: zod.string().optional(),
+    }),
+  ),
+  verdict: zod.string(),
+  verdictDetails: zod.object({
+    summary: zod.string(),
+    bestAnswer: zod.string(),
+    clearestAnswer: zod.string(),
+    agreementPoints: zod.array(zod.string()),
+    disagreementPoints: zod.array(zod.string()),
+    overallWinner: zod.string(),
+    explanation: zod.string(),
+  }),
+  isMedical: zod.boolean(),
+  physicianNote: zod.string().optional(),
+  source: zod.enum(["live", "mock", "mixed"]),
+  cached: zod.boolean(),
+  providerStatuses: zod.array(
+    zod.object({
+      model: zod.enum(["chatgpt", "claude", "gemini", "deepseek"]),
+      provider: zod.string(),
+      status: zod.enum(["live", "fallback"]),
+      message: zod.string(),
+    }),
+  ),
+});

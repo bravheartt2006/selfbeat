@@ -1,19 +1,10 @@
-export interface ModelResponse {
-  model: 'chatgpt' | 'claude' | 'gemini' | 'deepseek';
-  answer: string;
-  selfCriticism: string;
-  score: number;
-}
+import type {
+  SelfbeatComparisonResult,
+  SelfbeatModelResponse,
+} from "@workspace/api-client-react";
 
-export interface ComparisonResult {
-  id: string;
-  question: string;
-  timestamp: number;
-  responses: ModelResponse[];
-  verdict: string;
-  isMedical: boolean;
-  physicianNote?: string;
-}
+export type ModelResponse = SelfbeatModelResponse;
+export type ComparisonResult = SelfbeatComparisonResult;
 
 export function saveResult(result: ComparisonResult) {
   const existing = getResults();

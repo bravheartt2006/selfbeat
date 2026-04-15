@@ -3,14 +3,17 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Activity, ArrowRight, Sparkles, AlertCircle } from "lucide-react";
-import { findExistingResult, saveResult } from "@/lib/store";
+import { createSelfbeatComparison } from "@workspace/api-client-react";
+import { saveResult } from "@/lib/store";
 import { generateMockResult } from "@/lib/mock-data";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
   const [query, setQuery] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   const exampleQuestions = [
     "What causes anxiety?",
@@ -25,32 +28,41 @@ export default function Home() {
     "Round 3: Calculating verdict..."
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim() || isProcessing) return;
 
     setIsProcessing(true);
     setLoadingStep(0);
 
-    // Simulate the 3-round process
     let step = 0;
     const interval = setInterval(() => {
       step++;
       if (step < 3) {
         setLoadingStep(step);
-      } else {
-        clearInterval(interval);
-        
-        // Check cache or generate new
-        let result = findExistingResult(query);
-        if (!result) {
-          result = generateMockResult(query);
-          saveResult(result);
-        }
-        
-        setLocation(`/results/${result.id}`);
       }
     }, 1500); // 1.5 seconds per step
+
+    try {
+      const result = await createSelfbeatComparison({
+        question: query,
+        mode: "live"
+      });
+      saveResult(result);
+      setLocation(`/results/${result.id}`);
+    } catch (error) {
+      const result = generateMockResult(query);
+      saveResult(result);
+      toast({
+        title: "Using mock fallback",
+        description: "The live comparison could not complete, so Selfbeat showed a local mock result.",
+        duration: 4000
+      });
+      setLocation(`/results/${result.id}`);
+    } finally {
+      clearInterval(interval);
+      setIsProcessing(false);
+    }
   };
 
   return (

@@ -6,4 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./createSelfbeatComparisonBody";
+export * from "./createSelfbeatComparisonBodyMode";
+export * from "./errorResponse";
 export * from "./healthStatus";
+export * from "./selfbeatComparisonResult";
+export * from "./selfbeatComparisonResultSource";
+export * from "./selfbeatModelKey";
+export * from "./selfbeatModelResponse";
+export * from "./selfbeatModelResponseStatus";
+export * from "./selfbeatProviderStatus";
+export * from "./selfbeatProviderStatusStatus";
+export * from "./selfbeatVerdict";

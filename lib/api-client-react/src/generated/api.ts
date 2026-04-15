@@ -5,18 +5,26 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  CreateSelfbeatComparisonBody,
+  ErrorResponse,
+  HealthStatus,
+  SelfbeatComparisonResult,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -92,6 +100,187 @@ export function useHealthCheck<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getHealthCheckQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a Selfbeat AI comparison
+ */
+export const getCreateSelfbeatComparisonUrl = () => {
+  return `/api/selfbeat/comparisons`;
+};
+
+export const createSelfbeatComparison = async (
+  createSelfbeatComparisonBody: CreateSelfbeatComparisonBody,
+  options?: RequestInit,
+): Promise<SelfbeatComparisonResult> => {
+  return customFetch<SelfbeatComparisonResult>(
+    getCreateSelfbeatComparisonUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createSelfbeatComparisonBody),
+    },
+  );
+};
+
+export const getCreateSelfbeatComparisonMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSelfbeatComparison>>,
+    TError,
+    { data: BodyType<CreateSelfbeatComparisonBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSelfbeatComparison>>,
+  TError,
+  { data: BodyType<CreateSelfbeatComparisonBody> },
+  TContext
+> => {
+  const mutationKey = ["createSelfbeatComparison"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSelfbeatComparison>>,
+    { data: BodyType<CreateSelfbeatComparisonBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSelfbeatComparison(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSelfbeatComparisonMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSelfbeatComparison>>
+>;
+export type CreateSelfbeatComparisonMutationBody =
+  BodyType<CreateSelfbeatComparisonBody>;
+export type CreateSelfbeatComparisonMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Create a Selfbeat AI comparison
+ */
+export const useCreateSelfbeatComparison = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSelfbeatComparison>>,
+    TError,
+    { data: BodyType<CreateSelfbeatComparisonBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSelfbeatComparison>>,
+  TError,
+  { data: BodyType<CreateSelfbeatComparisonBody> },
+  TContext
+> => {
+  return useMutation(getCreateSelfbeatComparisonMutationOptions(options));
+};
+
+/**
+ * @summary Get a cached Selfbeat comparison
+ */
+export const getGetSelfbeatComparisonUrl = (id: string) => {
+  return `/api/selfbeat/comparisons/${id}`;
+};
+
+export const getSelfbeatComparison = async (
+  id: string,
+  options?: RequestInit,
+): Promise<SelfbeatComparisonResult> => {
+  return customFetch<SelfbeatComparisonResult>(
+    getGetSelfbeatComparisonUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetSelfbeatComparisonQueryKey = (id: string) => {
+  return [`/api/selfbeat/comparisons/${id}`] as const;
+};
+
+export const getGetSelfbeatComparisonQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSelfbeatComparison>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSelfbeatComparison>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetSelfbeatComparisonQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSelfbeatComparison>>
+  > = ({ signal }) => getSelfbeatComparison(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSelfbeatComparison>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSelfbeatComparisonQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSelfbeatComparison>>
+>;
+export type GetSelfbeatComparisonQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get a cached Selfbeat comparison
+ */
+
+export function useGetSelfbeatComparison<
+  TData = Awaited<ReturnType<typeof getSelfbeatComparison>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSelfbeatComparison>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSelfbeatComparisonQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

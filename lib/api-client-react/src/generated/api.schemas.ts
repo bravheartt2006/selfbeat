@@ -8,3 +8,103 @@
 export interface HealthStatus {
   status: string;
 }
+
+export type CreateSelfbeatComparisonBodyMode =
+  (typeof CreateSelfbeatComparisonBodyMode)[keyof typeof CreateSelfbeatComparisonBodyMode];
+
+export const CreateSelfbeatComparisonBodyMode = {
+  live: "live",
+  mock: "mock",
+} as const;
+
+export interface CreateSelfbeatComparisonBody {
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  question: string;
+  mode?: CreateSelfbeatComparisonBodyMode;
+}
+
+export type SelfbeatModelKey =
+  (typeof SelfbeatModelKey)[keyof typeof SelfbeatModelKey];
+
+export const SelfbeatModelKey = {
+  chatgpt: "chatgpt",
+  claude: "claude",
+  gemini: "gemini",
+  deepseek: "deepseek",
+} as const;
+
+export type SelfbeatModelResponseStatus =
+  (typeof SelfbeatModelResponseStatus)[keyof typeof SelfbeatModelResponseStatus];
+
+export const SelfbeatModelResponseStatus = {
+  success: "success",
+  fallback: "fallback",
+} as const;
+
+export interface SelfbeatModelResponse {
+  model: SelfbeatModelKey;
+  displayName: string;
+  color: string;
+  answer: string;
+  selfCriticism: string;
+  score: number;
+  accuracyScore: number;
+  selfAwarenessScore: number;
+  status: SelfbeatModelResponseStatus;
+  error?: string;
+}
+
+export interface SelfbeatVerdict {
+  summary: string;
+  bestAnswer: string;
+  clearestAnswer: string;
+  agreementPoints: string[];
+  disagreementPoints: string[];
+  overallWinner: string;
+  explanation: string;
+}
+
+export type SelfbeatProviderStatusStatus =
+  (typeof SelfbeatProviderStatusStatus)[keyof typeof SelfbeatProviderStatusStatus];
+
+export const SelfbeatProviderStatusStatus = {
+  live: "live",
+  fallback: "fallback",
+} as const;
+
+export interface SelfbeatProviderStatus {
+  model: SelfbeatModelKey;
+  provider: string;
+  status: SelfbeatProviderStatusStatus;
+  message: string;
+}
+
+export type SelfbeatComparisonResultSource =
+  (typeof SelfbeatComparisonResultSource)[keyof typeof SelfbeatComparisonResultSource];
+
+export const SelfbeatComparisonResultSource = {
+  live: "live",
+  mock: "mock",
+  mixed: "mixed",
+} as const;
+
+export interface SelfbeatComparisonResult {
+  id: string;
+  question: string;
+  timestamp: number;
+  responses: SelfbeatModelResponse[];
+  verdict: string;
+  verdictDetails: SelfbeatVerdict;
+  isMedical: boolean;
+  physicianNote?: string;
+  source: SelfbeatComparisonResultSource;
+  cached: boolean;
+  providerStatuses: SelfbeatProviderStatus[];
+}
+
+export interface ErrorResponse {
+  error: string;
+}

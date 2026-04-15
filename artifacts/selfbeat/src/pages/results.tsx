@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { getResult, ComparisonResult } from "@/lib/store";
+import { getSelfbeatComparison } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -8,9 +9,9 @@ import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle } from "l
 import { useToast } from "@/hooks/use-toast";
 
 const MODEL_COLORS = {
-  chatgpt: { text: "text-[hsl(165_82%_35%)]", bg: "bg-[hsl(165_82%_35%)]/10", border: "border-[hsl(165_82%_35%)]/20", icon: "bg-[hsl(165_82%_35%)]", name: "GPT-4o" },
-  claude: { text: "text-[hsl(15_54%_58%)]", bg: "bg-[hsl(15_54%_58%)]/10", border: "border-[hsl(15_54%_58%)]/20", icon: "bg-[hsl(15_54%_58%)]", name: "Claude 3.5" },
-  gemini: { text: "text-[hsl(217_89%_61%)]", bg: "bg-[hsl(217_89%_61%)]/10", border: "border-[hsl(217_89%_61%)]/20", icon: "bg-[hsl(217_89%_61%)]", name: "Gemini 1.5" },
+  chatgpt: { text: "text-[hsl(165_82%_35%)]", bg: "bg-[hsl(165_82%_35%)]/10", border: "border-[hsl(165_82%_35%)]/20", icon: "bg-[hsl(165_82%_35%)]", name: "ChatGPT" },
+  claude: { text: "text-[hsl(15_54%_58%)]", bg: "bg-[hsl(15_54%_58%)]/10", border: "border-[hsl(15_54%_58%)]/20", icon: "bg-[hsl(15_54%_58%)]", name: "Claude" },
+  gemini: { text: "text-[hsl(217_89%_61%)]", bg: "bg-[hsl(217_89%_61%)]/10", border: "border-[hsl(217_89%_61%)]/20", icon: "bg-[hsl(217_89%_61%)]", name: "Gemini" },
   deepseek: { text: "text-[hsl(248_80%_67%)]", bg: "bg-[hsl(248_80%_67%)]/10", border: "border-[hsl(248_80%_67%)]/20", icon: "bg-[hsl(248_80%_67%)]", name: "DeepSeek" }
 };
 
@@ -19,19 +20,43 @@ export default function Results() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [result, setResult] = useState<ComparisonResult | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
+
     if (id) {
-      const data = getResult(id);
-      if (data) {
-        setResult(data);
-      } else {
-        setLocation("/");
-      }
+      getSelfbeatComparison(id)
+        .then((data) => {
+          if (active) setResult(data);
+        })
+        .catch(() => {
+          const data = getResult(id);
+          if (data && active) {
+            setResult(data);
+            setLoadError("Loaded from local fallback cache because the server result was not available.");
+            return;
+          }
+
+          setLocation("/");
+        });
     }
+
+    return () => {
+      active = false;
+    };
   }, [id, setLocation]);
 
-  if (!result) return null;
+  if (!result) {
+    return (
+      <div className="container py-20 max-w-3xl text-center">
+        <div className="inline-flex items-center gap-3 px-5 py-3 rounded-full bg-primary/10 border border-primary/20 text-primary">
+          <AlertCircle className="h-4 w-4 animate-pulse" />
+          <span className="font-medium">Loading Selfbeat comparison...</span>
+        </div>
+      </div>
+    );
+  }
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -64,6 +89,8 @@ export default function Results() {
             <span>ID: {result.id}</span>
             <span className="w-1 h-1 rounded-full bg-border" />
             <span>{new Date(result.timestamp).toLocaleDateString()}</span>
+            <span className="w-1 h-1 rounded-full bg-border" />
+            <span>{result.source === "live" ? "Live AI" : result.source === "mixed" ? "Mixed live and fallback" : "Mock result"}</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-serif font-bold text-foreground leading-tight">
             "{result.question}"
@@ -74,6 +101,12 @@ export default function Results() {
           Share Results
         </Button>
       </div>
+
+      {loadError && (
+        <div className="mb-8 rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 text-sm text-foreground/80">
+          {loadError}
+        </div>
+      )}
 
       {/* Physician Note (Conditional) */}
       {result.isMedical && result.physicianNote && (
@@ -123,7 +156,7 @@ export default function Results() {
                   <div className="flex items-center gap-3">
                     <div className={`w-3 h-3 rounded-full ${styling.icon} animate-pulse`} />
                     <CardTitle className={`font-serif text-xl ${styling.text}`}>
-                      {styling.name}
+                      {res.displayName || styling.name}
                     </CardTitle>
                   </div>
                   <div className="text-right">
