@@ -203,26 +203,35 @@ async function generatePhysicianNote(question: string, answers: string): Promise
 async function withRetry<T>(operation: () => Promise<T>) {
   let lastError: unknown;
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       return await operation();
     } catch (error) {
       lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)));
+      await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
     }
   }
 
   throw lastError;
 }
 
-async function askModel(model: ModelInfo, prompt: string) {
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
+
+async function askModel(model: ModelInfo, prompt: string, maxTokens = 450) {
   return withRetry(async () => {
     if (model.provider === "openai") {
       const { openai } = await import("@workspace/integrations-openai-ai-server");
       const response = await openai.chat.completions.create({
         model: model.routerModel,
         messages: [{ role: "user", content: prompt }],
-        max_completion_tokens: 900,
+        max_completion_tokens: maxTokens,
       });
       return response.choices[0]?.message?.content?.trim() || "";
     }
@@ -231,7 +240,7 @@ async function askModel(model: ModelInfo, prompt: string) {
       const { anthropic } = await import("@workspace/integrations-anthropic-ai");
       const response = await anthropic.messages.create({
         model: model.routerModel,
-        max_tokens: 1024,
+        max_tokens: maxTokens,
         messages: [{ role: "user", content: prompt }],
       });
       return response.content
@@ -245,6 +254,7 @@ async function askModel(model: ModelInfo, prompt: string) {
       const response = await ai.models.generateContent({
         model: model.routerModel,
         contents: prompt,
+        config: { maxOutputTokens: maxTokens },
       });
       return response.text?.trim() || "";
     }
@@ -254,7 +264,7 @@ async function askModel(model: ModelInfo, prompt: string) {
     const response = await openrouter.chat.completions.create({
       model: model.routerModel,
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 900,
+      max_tokens: maxTokens,
     });
     return response.choices[0]?.message?.content?.trim() || "";
   });
@@ -478,13 +488,13 @@ async function createComparison(question: string, mode: "live" | "mock") {
         `All AI answers for comparison:`,
         allAnswers,
         ``,
-        `Write your self-criticism in 3–4 sentences: what you got right, what you missed, which other AI did better and why.`,
+        `Write your self-criticism in 2–3 sentences: what you got right, what you missed, which other AI did better and why.`,
         `End with exactly this format on its own line: "Accuracy score: X/10. Self-awareness score: Y/10."`,
-        `Keep it under 180 words total.`,
+        `Keep it under 120 words total.`,
       ].join("\n");
 
       try {
-        const critique = await askModel(model, critiquePrompt);
+        const critique = await withTimeout(askModel(model, critiquePrompt, 300), 10000);
 
         // Extract accuracy and self-awareness separately if present
         const accuracyMatch = critique.match(/accuracy\s+score[^\d]*(\d+(?:\.\d+)?)\s*\/\s*10/i);
@@ -604,7 +614,7 @@ async function createComparison(question: string, mode: "live" | "mock") {
 // Emits per-model events progressively so the UI can update as each AI responds.
 
 const buildAnswerPrompt = (model: ModelInfo, question: string) =>
-  `You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 220 words.\n\nQuestion: ${question}`;
+  `You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 150 words.\n\nQuestion: ${question}`;
 
 const buildCritiquePromptText = (
   model: ModelInfo,
@@ -625,9 +635,9 @@ const buildCritiquePromptText = (
     `All AI answers for comparison:`,
     allAnswers,
     ``,
-    `Write your self-criticism in 3–4 sentences: what you got right, what you missed, which other AI did better and why.`,
+    `Write your self-criticism in 2–3 sentences: what you got right, what you missed, which other AI did better and why.`,
     `End with exactly this format on its own line: "Accuracy score: X/10. Self-awareness score: Y/10."`,
-    `Keep it under 180 words total.`,
+    `Keep it under 120 words total.`,
   ].join("\n");
 
 const buildVerdictStr = (
@@ -697,7 +707,7 @@ router.post("/selfbeat/comparisons/stream", async (req, res) => {
 
         let hasRealAnswer = false;
         try {
-          const raw = await askModel(model, buildAnswerPrompt(model, question));
+          const raw = await withTimeout(askModel(model, buildAnswerPrompt(model, question), 450), 12000);
           if (raw) {
             answer = raw;
             status = "success";
@@ -738,6 +748,18 @@ router.post("/selfbeat/comparisons/stream", async (req, res) => {
       clampScore(5.5 + questionSeed(question, i + 1) * 4.0),
     );
 
+    // ── Start insights early (only needs Round 1 answers) so it runs in parallel with Round 2 ──
+    const round1AnswerPayload = round1Results
+      .filter((r) => r.status === "success")
+      .map((r) => ({ displayName: r.model.displayName, answer: r.answer }));
+    const insightsPromise = generateVerdictInsights(
+      question,
+      round1AnswerPayload.length > 0 ? round1AnswerPayload : round1Results.map((r) => ({ displayName: r.model.displayName, answer: r.answer })),
+    );
+    const physicianPromise = isMedical
+      ? generatePhysicianNote(question, round1Results.map((r) => `${r.model.displayName}: ${r.answer}`).join("\n\n"))
+      : Promise.resolve(undefined);
+
     // ── Round 2: all 10 critiques in parallel, emit each as it resolves ──
     emit("status", { phase: "round2", message: "Round 2: AIs examining each other simultaneously..." });
 
@@ -759,7 +781,10 @@ router.post("/selfbeat/comparisons/stream", async (req, res) => {
         } else {
           let critique = "";
           try {
-            critique = await askModel(model, buildCritiquePromptText(model, question, answer, allAnswers));
+            critique = await withTimeout(
+              askModel(model, buildCritiquePromptText(model, question, answer, allAnswers), 300),
+              10000,
+            );
           } catch {}
 
           const accuracyMatch = critique.match(/accuracy\s+score[^\d]*(\d+(?:\.\d+)?)\s*\/\s*10/i);
@@ -798,20 +823,12 @@ router.post("/selfbeat/comparisons/stream", async (req, res) => {
       }),
     );
 
-    // ── Round 3: verdict + insights (can run insight + physician in parallel) ─
+    // ── Round 3: verdict — insights already running, just await ──────────────
     emit("status", { phase: "verdict", message: "Round 3: Calculating final verdict..." });
 
     const winner = [...secondRound].sort((a, b) => b.score - a.score)[0] ?? secondRound[0];
-    const answerPayload = secondRound
-      .filter((r) => !r.isGeneric)
-      .map((r) => ({ displayName: r.displayName, answer: r.answer }));
 
-    const [insights, physicianNote] = await Promise.all([
-      generateVerdictInsights(question, answerPayload.length > 0 ? answerPayload : secondRound.map((r) => ({ displayName: r.displayName, answer: r.answer }))),
-      isMedical
-        ? generatePhysicianNote(question, secondRound.map((r) => `${r.displayName}: ${r.answer}`).join("\n\n"))
-        : Promise.resolve(undefined),
-    ]);
+    const [insights, physicianNote] = await Promise.all([insightsPromise, physicianPromise]);
 
     const verdictDetails = {
       summary: `${winner.displayName} produced the strongest combined performance for this question, with the highest score across accuracy and self-awareness.`,
