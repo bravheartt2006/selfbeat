@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useLocation, useParams } from "wouter";
+import { useLanguage } from "@/lib/language-context";
 import { getResult, ComparisonResult } from "@/lib/store";
 import { getSelfbeatComparison } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -52,6 +53,7 @@ export default function Results() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [result, setResult] = useState<ComparisonResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -84,7 +86,7 @@ export default function Results() {
       <div className="container py-20 max-w-3xl text-center">
         <div className="inline-flex items-center gap-3 px-5 py-3 rounded-full bg-primary/10 border border-primary/20 text-primary">
           <AlertCircle className="h-4 w-4 animate-pulse" />
-          <span className="font-medium">Loading Selfbeat comparison...</span>
+          <span className="font-medium">{t("loading")}</span>
         </div>
       </div>
     );
@@ -92,12 +94,12 @@ export default function Results() {
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast({ title: "Copied to clipboard", description: "Response text copied.", duration: 2000 });
+    toast({ title: t("copied"), description: t("copiedDesc"), duration: 2000 });
   };
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
-    toast({ title: "Link copied!", description: "Share this comparison with others.", duration: 2000 });
+    toast({ title: t("linkCopied"), description: t("linkCopiedDesc"), duration: 2000 });
   };
 
   const handleListen = () => {
@@ -161,7 +163,7 @@ export default function Results() {
             aria-label="Start over — go back to the home page to ask a new question"
           >
             <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
-            Start Over
+            {t("startOver")}
           </Button>
           {typeof window !== "undefined" && window.speechSynthesis && (
             <Button
@@ -175,12 +177,12 @@ export default function Results() {
                 ? <VolumeX className="mr-2 h-4 w-4" aria-hidden="true" />
                 : <Volume2 className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" aria-hidden="true" />
               }
-              {isSpeaking ? "Stop" : "Listen"}
+              {isSpeaking ? t("stop") : t("listen")}
             </Button>
           )}
           <Button variant="outline" onClick={handleShare} className="group" aria-label="Copy link to share these results">
             <Share2 className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" aria-hidden="true" />
-            Share Results
+            {t("shareResults")}
           </Button>
         </div>
       </div>
@@ -201,7 +203,7 @@ export default function Results() {
             </div>
             <div>
               <h3 className="font-serif font-bold text-lg text-amber-400 mb-2 flex items-center gap-2">
-                Physician Perspective — AI Generated <AlertTriangle className="h-4 w-4" />
+                {t("physicianNote")} — AI Generated <AlertTriangle className="h-4 w-4" />
               </h3>
               <p className="text-foreground/80 leading-relaxed">{result.physicianNote}</p>
             </div>
@@ -215,7 +217,7 @@ export default function Results() {
           <CardHeader className="bg-primary/5 border-b border-primary/10">
             <div className="flex items-center gap-3">
               <Trophy className="h-6 w-6 text-primary" />
-              <CardTitle className="font-serif text-2xl">Final Verdict</CardTitle>
+              <CardTitle className="font-serif text-2xl">{t("verdictLabel")}</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="pt-6 space-y-4">
@@ -244,7 +246,7 @@ export default function Results() {
                       <Trophy className="h-4 w-4" style={{ color: getModelMeta(winner.model).color }} />
                     </div>
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Winning Answer</div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("winner")}</div>
                       <div className="text-sm font-bold leading-none" style={{ color: getModelMeta(winner.model).color }}>
                         {winner.displayName || getModelMeta(winner.model).name}
                         <span className="ml-2 text-[10px] font-mono opacity-70">{winner.score.toFixed(1)}/10</span>
@@ -288,7 +290,7 @@ export default function Results() {
                 <div className="space-y-4">
                   {result.verdictDetails.agreementPoints?.length > 0 && (
                     <div>
-                      <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Where They Agreed</div>
+                      <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">{t("agreementPoints")}</div>
                       <ul className="space-y-1">
                         {result.verdictDetails.agreementPoints.map((pt, i) => (
                           <li key={i} className="text-sm text-foreground/70 flex items-start gap-2">
@@ -300,7 +302,7 @@ export default function Results() {
                   )}
                   {result.verdictDetails.disagreementPoints?.length > 0 && (
                     <div>
-                      <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Where They Differed</div>
+                      <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">{t("disagreementPoints")}</div>
                       <ul className="space-y-1">
                         {result.verdictDetails.disagreementPoints.map((pt, i) => (
                           <li key={i} className="text-sm text-foreground/70 flex items-start gap-2">
@@ -380,7 +382,7 @@ export default function Results() {
                 <div className="rounded-xl p-3.5 bg-muted/10 border border-muted/30">
                   <div className="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5 text-muted-foreground">
                     <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold text-background shrink-0" style={{ backgroundColor: hexColor }}>1</span>
-                    Answer
+                    {t("round1Label")}
                   </div>
                   <p className="text-sm leading-relaxed text-foreground/90">{res.answer}</p>
                   {res.isGeneric && (
@@ -395,7 +397,7 @@ export default function Results() {
                 <div className="rounded-xl p-3.5" style={{ border: `1px solid ${borderTint}`, backgroundColor: bgTint }}>
                   <div className="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5" style={{ color: hexColor }}>
                     <MessageSquareQuote className="h-3 w-3 shrink-0" />
-                    Self-Critique
+                    {t("round2Label")}
                   </div>
                   {res.declined ? (
                     <div className="flex items-start gap-2">
@@ -419,7 +421,7 @@ export default function Results() {
                   className="text-xs text-muted-foreground hover:text-foreground"
                 >
                   <Copy className="h-3 w-3 mr-2" />
-                  Copy
+                  {t("copyText")}
                 </Button>
               </CardFooter>
             </Card>

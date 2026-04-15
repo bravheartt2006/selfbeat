@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Activity, ArrowRight, AlertCircle, Mic, MicOff, X } from "lucide-react";
+import { useLanguage } from "@/lib/language-context";
 
 type SR = typeof SpeechRecognition;
 
@@ -14,19 +15,26 @@ function getSR(): SR | null {
   );
 }
 
-function pickFemaleVoice(): SpeechSynthesisVoice | null {
+function pickVoice(speechLang: string): SpeechSynthesisVoice | null {
   const voices = window.speechSynthesis?.getVoices() ?? [];
-  const preferred = ["Google US English Female", "Microsoft Zira", "Samantha", "Karen", "Victoria", "Moira", "Fiona"];
+  const base = speechLang.split("-")[0].toLowerCase();
+  const female = [
+    "Google US English Female", "Google français", "Google Arabic", "Google 普通话（中国大陆）",
+    "Google italiano", "Google español", "Microsoft Zira", "Samantha",
+    "Karen", "Victoria", "Moira", "Fiona",
+  ];
   return (
-    voices.find((v) => preferred.some((p) => v.name.includes(p))) ||
-    voices.find((v) => v.lang.startsWith("en") && v.name.toLowerCase().includes("female")) ||
-    voices.find((v) => v.lang.startsWith("en-US")) ||
+    voices.find((v) => female.some((f) => v.name.includes(f)) && v.lang.startsWith(base)) ||
+    voices.find((v) => female.some((f) => v.name.includes(f))) ||
+    voices.find((v) => v.lang.toLowerCase().startsWith(base) && v.name.toLowerCase().includes("female")) ||
+    voices.find((v) => v.lang.toLowerCase().startsWith(base)) ||
     voices[0] ||
     null
   );
 }
 
 export default function Home() {
+  const { t, speechLang } = useLanguage();
   const [query, setQuery] = useState("");
   const [, setLocation] = useLocation();
   const [isListening, setIsListening] = useState(false);
@@ -40,12 +48,7 @@ export default function Home() {
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const greetedRef = useRef(false);
 
-  const exampleQuestions = [
-    "What causes high blood pressure?",
-    "How does cryptocurrency work?",
-    "What is the best diet for weight loss?",
-    "Will AI replace human jobs?",
-  ];
+  const exampleQuestions = [t("exQ1"), t("exQ2"), t("exQ3"), t("exQ4")];
 
   const cancelCountdown = useCallback(() => {
     if (countdownRef.current) {
@@ -84,7 +87,7 @@ export default function Home() {
     const recognition = new SR();
     recognition.continuous = false;
     recognition.interimResults = true;
-    recognition.lang = "en-US";
+    recognition.lang = speechLang;
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       const transcript = Array.from(event.results)
@@ -110,7 +113,7 @@ export default function Home() {
     recognitionRef.current = recognition;
     recognition.start();
     setIsListening(true);
-  }, [startCountdown]);
+  }, [startCountdown, speechLang]);
 
   const speakGreetingThenListen = useCallback(() => {
     if (!window.speechSynthesis) {
@@ -118,14 +121,13 @@ export default function Home() {
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(
-      "Ask anything. Watch AI judge itself."
-    );
+    const utterance = new SpeechSynthesisUtterance(t("greeting"));
     utterance.pitch = 1.15;
     utterance.rate = 0.88;
     utterance.volume = 0.95;
+    utterance.lang = speechLang;
 
-    const voice = pickFemaleVoice();
+    const voice = pickVoice(speechLang);
     if (voice) utterance.voice = voice;
 
     setIsGreeting(true);
@@ -142,7 +144,7 @@ export default function Home() {
 
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
-  }, [startListening]);
+  }, [startListening, t, speechLang]);
 
   useEffect(() => {
     const SR = getSR();
@@ -154,11 +156,11 @@ export default function Home() {
     if (greetedRef.current) return;
     greetedRef.current = true;
 
-    const run = () => speakGreetingThenListen();
-
     if (!window.speechSynthesis) return;
 
+    const run = () => speakGreetingThenListen();
     const voices = window.speechSynthesis.getVoices();
+
     if (voices.length > 0) {
       setTimeout(run, 700);
     } else {
@@ -169,10 +171,7 @@ export default function Home() {
         window.speechSynthesis.onvoiceschanged = null;
         setTimeout(run, 300);
       };
-      // Fallback if onvoiceschanged never fires
-      setTimeout(() => {
-        if (!done) { done = true; run(); }
-      }, 1400);
+      setTimeout(() => { if (!done) { done = true; run(); } }, 1400);
     }
   }, [speakGreetingThenListen]);
 
@@ -218,7 +217,7 @@ export default function Home() {
           Selfbeat
         </h1>
         <p className="text-xl md:text-2xl text-muted-foreground font-light tracking-wide mb-8">
-          Where AI meets its match — itself.
+          {t("tagline")}
         </p>
       </div>
 
@@ -233,33 +232,24 @@ export default function Home() {
           <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 to-primary/30 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" aria-hidden="true" />
           <div className="relative flex items-center gap-2">
             <label htmlFor="question-input" className="sr-only">
-              Your question for the AI models
+              {t("inputPlaceholder")}
             </label>
             <Input
               id="question-input"
               value={query}
               onChange={handleQueryChange}
-              placeholder="Ask anything. Watch AI judge itself."
+              placeholder={t("inputPlaceholder")}
               className="w-full h-16 pl-6 pr-4 text-lg rounded-xl border-border/50 bg-background/80 backdrop-blur-sm focus-visible:ring-primary/50"
-              aria-label="Type or speak your question here"
+              aria-label={t("inputPlaceholder")}
               aria-describedby="voice-status"
               autoComplete="off"
             />
 
-            {/* Mic / greeting indicator button */}
             {voiceSupported && (
               <button
                 type="button"
                 onClick={toggleListening}
-                aria-label={
-                  isGreeting
-                    ? "Playing voice greeting"
-                    : isListening
-                    ? "Stop recording"
-                    : countdown !== null
-                    ? "Cancel countdown and re-record"
-                    : "Play greeting and start voice input"
-                }
+                aria-label={isListening ? "Stop recording" : "Play greeting and start voice input"}
                 aria-pressed={isListening}
                 className={`
                   shrink-0 h-12 w-12 rounded-xl flex items-center justify-center border transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none
@@ -282,9 +272,9 @@ export default function Home() {
               size="lg"
               className="shrink-0 h-12 px-6 rounded-lg font-semibold transition-all hover:scale-105"
               disabled={!query.trim()}
-              aria-label="Submit question"
+              aria-label={t("startButton")}
             >
-              Start Selfbeat <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+              {t("startButton")} <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
         </form>
@@ -294,13 +284,13 @@ export default function Home() {
 
           {statusPhase === "greeting" && (
             <p className="text-sm text-primary/80 font-medium animate-pulse">
-              Speaking... the mic opens right after
+              {t("greetingStatus")}
             </p>
           )}
 
           {statusPhase === "listening" && (
             <p className="text-sm text-red-400 font-medium animate-pulse">
-              Listening... speak your question now
+              {t("listeningStatus")}
             </p>
           )}
 
@@ -322,29 +312,25 @@ export default function Home() {
                 </span>
               </div>
               <p className="text-sm text-amber-400 font-medium">
-                Submitting in {countdown}s — or
+                {t("countdownStatus").replace("{n}", String(countdown))}
               </p>
               <button
                 type="button"
                 onClick={cancelCountdown}
                 className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
-                aria-label="Cancel auto-submit and stay on this page to edit"
+                aria-label="Cancel auto-submit"
               >
                 <X className="h-3.5 w-3.5" />
-                Cancel
+                {t("cancel")}
               </button>
             </div>
           )}
 
           {statusPhase === "idle" && !voiceError && voiceSupported && (
-            <p className="text-xs text-muted-foreground/60">
-              Just speak — the mic opens automatically, or tap it to replay
-            </p>
+            <p className="text-xs text-muted-foreground/60">{t("idleHint")}</p>
           )}
           {statusPhase === "idle" && !voiceError && !voiceSupported && (
-            <p className="text-xs text-muted-foreground/60">
-              Type your question and press Enter to submit
-            </p>
+            <p className="text-xs text-muted-foreground/60">{t("idleHintNoVoice")}</p>
           )}
           {statusPhase === "idle" && voiceError && (
             <p className="text-sm text-amber-400">{voiceError}</p>
@@ -361,11 +347,11 @@ export default function Home() {
           <button
             key={i}
             onClick={() => { cancelCountdown(); setQuery(q); }}
-            aria-label={`Use example question: ${q}`}
+            aria-label={q}
             className="text-left p-4 rounded-xl border border-border/40 bg-card/30 hover:bg-card/80 hover:border-primary/30 transition-all text-sm text-muted-foreground hover:text-foreground group focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
           >
             <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 mt-0.5 text-muted-foreground/50 group-hover:text-primary/70 transition-colors" aria-hidden="true" />
+              <AlertCircle className="h-5 w-5 mt-0.5 text-muted-foreground/50 group-hover:text-primary/70 transition-colors shrink-0" aria-hidden="true" />
               <span>{q}</span>
             </div>
           </button>

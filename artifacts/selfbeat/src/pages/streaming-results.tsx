@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearch, useLocation } from "wouter";
 import { saveResult } from "@/lib/store";
+import { useLanguage } from "@/lib/language-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Share2, Trophy, MessageSquareQuote, XCircle, Database,
@@ -205,6 +206,7 @@ function AnsweredCard({
   showCritiqueSpinner: boolean;
   onCopy: (text: string) => void;
 }) {
+  const { t } = useLanguage();
   const hex = card.color;
   const borderTint = hexToRgba(hex, 0.2);
   const bgTint = hexToRgba(hex, 0.07);
@@ -234,7 +236,7 @@ function AnsweredCard({
         <div className="rounded-xl p-3.5 bg-muted/10 border border-muted/30">
           <div className="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5 text-muted-foreground">
             <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold text-background shrink-0" style={{ backgroundColor: hex }}>1</span>
-            Answer
+            {t("round1Label")}
           </div>
           <p className="text-sm leading-relaxed text-foreground/90">{card.answer}</p>
           {card.isGeneric && (
@@ -272,6 +274,7 @@ function FullCard({
   isSlow: boolean;
   onCopy: (text: string) => void;
 }) {
+  const { t } = useLanguage();
   const hex = card.color;
   const borderTint = hexToRgba(hex, 0.2);
   const bgTint = hexToRgba(hex, 0.07);
@@ -326,7 +329,7 @@ function FullCard({
         <div className="rounded-xl p-3.5 bg-muted/10 border border-muted/30">
           <div className="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5 text-muted-foreground">
             <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold text-background shrink-0" style={{ backgroundColor: hex }}>1</span>
-            Answer
+            {t("round1Label")}
           </div>
           <p className="text-sm leading-relaxed text-foreground/90">{card.answer}</p>
           {card.isGeneric && (
@@ -341,7 +344,7 @@ function FullCard({
         <div className="rounded-xl p-3.5 animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ border: `1px solid ${borderTint}`, backgroundColor: bgTint }}>
           <div className="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5" style={{ color: hex }}>
             <MessageSquareQuote className="h-3 w-3 shrink-0" />
-            Self-Critique
+            {t("round2Label")}
           </div>
           {card.declined ? (
             <div className="flex items-start gap-2">
@@ -434,6 +437,7 @@ export default function StreamingResults() {
   const params = new URLSearchParams(search);
   const question = params.get("q") ?? "";
 
+  const { t } = useLanguage();
   const [phase, setPhase] = useState<Phase>("connecting");
   const [cards, setCards] = useState<ModelCard[]>(initialCards);
   const [verdict, setVerdict] = useState<VerdictPayload | null>(null);
@@ -738,7 +742,7 @@ export default function StreamingResults() {
             <CardHeader className="bg-primary/5 border-b border-primary/10">
               <div className="flex items-center gap-3">
                 <Trophy className="h-6 w-6 text-primary" />
-                <CardTitle className="font-serif text-2xl">Final Verdict</CardTitle>
+                <CardTitle className="font-serif text-2xl">{t("verdictLabel")}</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="pt-6 space-y-4">
@@ -759,7 +763,7 @@ export default function StreamingResults() {
                           <Trophy className="h-4 w-4" style={{ color: hex }} />
                         </div>
                         <div>
-                          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Winning Answer</div>
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("winner")}</div>
                           <div className="text-sm font-bold leading-none" style={{ color: hex }}>
                             {winnerCard.displayName}
                             <span className="ml-2 text-[10px] font-mono opacity-70">{winnerCard.score?.toFixed(1)}/10</span>
