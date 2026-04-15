@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote, XCircle, Database, RotateCcw, Square, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { pickVoice } from "@/lib/voices";
 
 type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek" | "grok" | "mistral" | "llama" | "perplexity" | "cohere" | "qwen" | "copilot";
 
@@ -57,23 +58,6 @@ function getSR(): AnySR | null {
   return (
     (window as unknown as Record<string, AnySR>).SpeechRecognition ||
     (window as unknown as Record<string, AnySR>).webkitSpeechRecognition ||
-    null
-  );
-}
-
-function pickVoice(speechLang: string): SpeechSynthesisVoice | null {
-  const voices = window.speechSynthesis?.getVoices() ?? [];
-  if (!voices.length) return null;
-  const base = speechLang.split("-")[0].toLowerCase();
-  const preferredNames = [
-    "Google US English", "Google UK English Female",
-    "Google français", "Google Arabic", "Google 普通话", "Google italiano", "Google español",
-    "Microsoft Zira", "Microsoft David", "Samantha", "Karen", "Victoria", "Moira", "Fiona",
-  ];
-  return (
-    voices.find(v => preferredNames.some(n => v.name.includes(n)) && v.lang.toLowerCase().startsWith(base)) ||
-    voices.find(v => v.lang.toLowerCase().startsWith(base) && !v.localService) ||
-    voices.find(v => v.lang.toLowerCase().startsWith(base)) ||
     null
   );
 }

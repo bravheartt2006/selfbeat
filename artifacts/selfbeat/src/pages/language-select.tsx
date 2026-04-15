@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Activity, Mic, Volume2 } from "lucide-react";
 import { LANGUAGES, LangCode, getLangMeta, translate } from "@/lib/i18n";
 import { useLanguage } from "@/lib/language-context";
+import { pickVoice } from "@/lib/voices";
 
 // ── Speech recognition ─────────────────────────────────────────────────────
 type SR = typeof SpeechRecognition;
@@ -23,37 +24,11 @@ const VOICE_ALIASES: Record<string, LangCode> = {
   spanish: "es", español: "es", espanol: "es", spain: "es", spagnolo: "es", espagne: "es",
 };
 
-function pickEnglishVoice(): SpeechSynthesisVoice | null {
-  const voices = window.speechSynthesis?.getVoices() ?? [];
-  const preferred = [
-    "Google US English Female", "Microsoft Zira", "Samantha",
-    "Karen", "Victoria", "Fiona", "Moira",
-  ];
-  return (
-    voices.find((v) => preferred.some((p) => v.name.includes(p)) && v.lang.startsWith("en")) ||
-    voices.find((v) => preferred.some((p) => v.name.includes(p))) ||
-    voices.find((v) => v.lang.startsWith("en")) ||
-    voices[0] ||
-    null
-  );
-}
-
 // Fire the language-specific greeting (must be called inside a click handler)
 function fireGreeting(code: LangCode) {
   if (!window.speechSynthesis) return;
   const meta = getLangMeta(code);
-  const base = meta.speechLang.split("-")[0].toLowerCase();
-  const preferred = [
-    "Google US English Female", "Google français", "Google Arabic",
-    "Google 普通话（中国大陆）", "Google italiano", "Google español",
-    "Microsoft Zira", "Samantha", "Karen", "Victoria", "Moira", "Fiona",
-  ];
-  const voices = window.speechSynthesis.getVoices();
-  const voice =
-    voices.find((v) => preferred.some((p) => v.name.includes(p)) && v.lang.toLowerCase().startsWith(base)) ||
-    voices.find((v) => preferred.some((p) => v.name.includes(p))) ||
-    voices.find((v) => v.lang.toLowerCase().startsWith(base)) ||
-    voices[0] || null;
+  const voice = pickVoice(meta.speechLang);
   const utterance = new SpeechSynthesisUtterance(translate(code, "greeting"));
   utterance.pitch = 1.15;
   utterance.rate = 0.88;
@@ -129,7 +104,7 @@ export default function LanguageSelect() {
     utterance.rate  = 0.80;
     utterance.volume = 0.95;
     utterance.lang  = "en-US";
-    const voice = pickEnglishVoice();
+    const voice = pickVoice("en-US");
     if (voice) utterance.voice = voice;
 
     utterance.onend   = () => startRecognition();

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Activity, ArrowRight, AlertCircle, Mic, MicOff, X } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
+import { pickVoice } from "@/lib/voices";
 
 type SR = typeof SpeechRecognition;
 
@@ -15,23 +16,6 @@ function getSR(): SR | null {
   );
 }
 
-function pickVoice(speechLang: string): SpeechSynthesisVoice | null {
-  const voices = window.speechSynthesis?.getVoices() ?? [];
-  const base = speechLang.split("-")[0].toLowerCase();
-  const female = [
-    "Google US English Female", "Google français", "Google Arabic", "Google 普通话（中国大陆）",
-    "Google italiano", "Google español", "Microsoft Zira", "Samantha",
-    "Karen", "Victoria", "Moira", "Fiona",
-  ];
-  return (
-    voices.find((v) => female.some((f) => v.name.includes(f)) && v.lang.startsWith(base)) ||
-    voices.find((v) => female.some((f) => v.name.includes(f))) ||
-    voices.find((v) => v.lang.toLowerCase().startsWith(base) && v.name.toLowerCase().includes("female")) ||
-    voices.find((v) => v.lang.toLowerCase().startsWith(base)) ||
-    voices[0] ||
-    null
-  );
-}
 
 export default function Home() {
   const { t, speechLang } = useLanguage();
