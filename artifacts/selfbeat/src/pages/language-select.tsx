@@ -1,11 +1,49 @@
 import { Activity } from "lucide-react";
-import { LANGUAGES, LangCode } from "@/lib/i18n";
+import { LANGUAGES, LangCode, getLangMeta, translate } from "@/lib/i18n";
 import { useLanguage } from "@/lib/language-context";
+
+// Speak greeting immediately inside a click handler so the browser
+// doesn't block it with autoplay restrictions.
+function fireGreeting(code: LangCode) {
+  if (!window.speechSynthesis) return;
+
+  const meta = getLangMeta(code);
+  const text = translate(code, "greeting");
+  const base = meta.speechLang.split("-")[0].toLowerCase();
+
+  const preferred = [
+    "Google US English Female", "Google français", "Google Arabic",
+    "Google 普通话（中国大陆）", "Google italiano", "Google español",
+    "Microsoft Zira", "Samantha", "Karen", "Victoria", "Moira", "Fiona",
+  ];
+
+  const voices = window.speechSynthesis.getVoices();
+  const voice =
+    voices.find((v) => preferred.some((p) => v.name.includes(p)) && v.lang.toLowerCase().startsWith(base)) ||
+    voices.find((v) => preferred.some((p) => v.name.includes(p))) ||
+    voices.find((v) => v.lang.toLowerCase().startsWith(base)) ||
+    voices[0] ||
+    null;
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.pitch = 1.15;
+  utterance.rate = 0.88;
+  utterance.volume = 0.95;
+  utterance.lang = meta.speechLang;
+  if (voice) utterance.voice = voice;
+
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utterance);
+}
 
 export default function LanguageSelect() {
   const { setLang } = useLanguage();
 
   const choose = (code: LangCode) => {
+    // Fire greeting FIRST while still inside the user-gesture context
+    // (browsers allow audio without a new permission prompt here)
+    fireGreeting(code);
+    // Then transition to the app
     setLang(code);
   };
 

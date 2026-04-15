@@ -158,22 +158,37 @@ export default function Home() {
 
     if (!window.speechSynthesis) return;
 
+    // If language-select already fired the greeting (still speaking),
+    // just wait for it to finish and then open the mic — no need to replay.
+    if (window.speechSynthesis.speaking) {
+      setIsGreeting(true);
+      const poll = setInterval(() => {
+        if (!window.speechSynthesis.speaking) {
+          clearInterval(poll);
+          setIsGreeting(false);
+          startListening();
+        }
+      }, 150);
+      return () => clearInterval(poll);
+    }
+
+    // Normal path: greet then listen (e.g. user navigated back to home)
     const run = () => speakGreetingThenListen();
     const voices = window.speechSynthesis.getVoices();
 
     if (voices.length > 0) {
-      setTimeout(run, 700);
+      setTimeout(run, 400);
     } else {
       let done = false;
       window.speechSynthesis.onvoiceschanged = () => {
         if (done) return;
         done = true;
         window.speechSynthesis.onvoiceschanged = null;
-        setTimeout(run, 300);
+        setTimeout(run, 200);
       };
-      setTimeout(() => { if (!done) { done = true; run(); } }, 1400);
+      setTimeout(() => { if (!done) { done = true; run(); } }, 1200);
     }
-  }, [speakGreetingThenListen]);
+  }, [speakGreetingThenListen, startListening]);
 
   const toggleListening = () => {
     cancelCountdown();
