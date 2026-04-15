@@ -39,7 +39,8 @@ export type TranslationKey =
   | "listen" | "stop"
   | "winner" | "loading" | "loadedFromCache"
   | "agreementPoints" | "disagreementPoints"
-  | "physicianNote" | "waiting" | "answered";
+  | "physicianNote" | "waiting" | "answered"
+  | "askReadMore" | "stopSearch";
 
 type Translations = Record<TranslationKey, string>;
 
@@ -86,6 +87,8 @@ const T: Record<LangCode, Translations> = {
     physicianNote:      "Physician Note",
     waiting:            "Waiting...",
     answered:           "Answered",
+    askReadMore:        "Would you like me to read the remaining answers? Say yes or no.",
+    stopSearch:         "Stop Search",
   },
   fr: {
     tagline:            "Là où l'IA rencontre son rival — elle-même.",
@@ -129,6 +132,8 @@ const T: Record<LangCode, Translations> = {
     physicianNote:      "Note du médecin",
     waiting:            "En attente...",
     answered:           "Répondu",
+    askReadMore:        "Voulez-vous que je lise les réponses restantes ? Dites oui ou non.",
+    stopSearch:         "Arrêter la recherche",
   },
   ar: {
     tagline:            "حيث يلتقي الذكاء الاصطناعي بمنافسه — نفسه.",
@@ -172,6 +177,8 @@ const T: Record<LangCode, Translations> = {
     physicianNote:      "ملاحظة الطبيب",
     waiting:            "انتظار...",
     answered:           "تمت الإجابة",
+    askReadMore:        "هل تريد أن أقرأ الإجابات المتبقية؟ قل نعم أو لا.",
+    stopSearch:         "إيقاف البحث",
   },
   zh: {
     tagline:            "人工智能与自身竞争的地方。",
@@ -215,6 +222,8 @@ const T: Record<LangCode, Translations> = {
     physicianNote:      "医师说明",
     waiting:            "等待中...",
     answered:           "已回答",
+    askReadMore:        "您希望我朗读其余的答案吗？请说是或否。",
+    stopSearch:         "停止搜索",
   },
   it: {
     tagline:            "Dove l'IA sfida se stessa.",
@@ -258,6 +267,8 @@ const T: Record<LangCode, Translations> = {
     physicianNote:      "Nota del medico",
     waiting:            "In attesa...",
     answered:           "Risposto",
+    askReadMore:        "Vuoi che legga le risposte rimanenti? Dì sì o no.",
+    stopSearch:         "Ferma la ricerca",
   },
   es: {
     tagline:            "Donde la IA se enfrenta a sí misma.",
@@ -301,6 +312,8 @@ const T: Record<LangCode, Translations> = {
     physicianNote:      "Nota del médico",
     waiting:            "Esperando...",
     answered:           "Respondido",
+    askReadMore:        "¿Quieres que lea las respuestas restantes? Di sí o no.",
+    stopSearch:         "Detener búsqueda",
   },
 };
 

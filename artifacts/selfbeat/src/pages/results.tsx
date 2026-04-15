@@ -1,11 +1,11 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useLocation, useParams } from "wouter";
 import { useLanguage } from "@/lib/language-context";
 import { getResult, ComparisonResult } from "@/lib/store";
 import { getSelfbeatComparison } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote, XCircle, Database, RotateCcw, Volume2, VolumeX } from "lucide-react";
+import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote, XCircle, Database, RotateCcw, Square, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek" | "grok" | "mistral" | "llama" | "perplexity" | "cohere" | "qwen" | "copilot";
@@ -49,15 +49,53 @@ function ScoreBar({ score, color }: { score: number; color: string }) {
   );
 }
 
+// ─── Voice helpers (module-level, no hook deps) ────────────────────────────
+
+type AnySR = typeof SpeechRecognition;
+
+function getSR(): AnySR | null {
+  return (
+    (window as unknown as Record<string, AnySR>).SpeechRecognition ||
+    (window as unknown as Record<string, AnySR>).webkitSpeechRecognition ||
+    null
+  );
+}
+
+function pickVoice(speechLang: string): SpeechSynthesisVoice | null {
+  const voices = window.speechSynthesis?.getVoices() ?? [];
+  if (!voices.length) return null;
+  const base = speechLang.split("-")[0].toLowerCase();
+  const preferredNames = [
+    "Google US English", "Google UK English Female",
+    "Google français", "Google Arabic", "Google 普通话", "Google italiano", "Google español",
+    "Microsoft Zira", "Microsoft David", "Samantha", "Karen", "Victoria", "Moira", "Fiona",
+  ];
+  return (
+    voices.find(v => preferredNames.some(n => v.name.includes(n)) && v.lang.toLowerCase().startsWith(base)) ||
+    voices.find(v => v.lang.toLowerCase().startsWith(base) && !v.localService) ||
+    voices.find(v => v.lang.toLowerCase().startsWith(base)) ||
+    null
+  );
+}
+
+// ─── Main component ────────────────────────────────────────────────────────
+
 export default function Results() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { t } = useLanguage();
+  const { t, speechLang } = useLanguage();
   const [result, setResult] = useState<ComparisonResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  // Voice reading state
+  type ReadPhase = "idle" | "winner" | "prompting" | "listening" | "all";
+  const [readPhase, setReadPhase] = useState<ReadPhase>("idle");
+  const [readingName, setReadingName] = useState<string>("");
+
+  const activeReadRef = useRef(false);
+  const stopRecogRef = useRef<SpeechRecognition | null>(null);
+  const hasAutoReadRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -78,8 +116,145 @@ export default function Results() {
   }, [id, setLocation]);
 
   useEffect(() => {
-    return () => { window.speechSynthesis?.cancel(); };
+    return () => {
+      window.speechSynthesis?.cancel();
+      stopRecogRef.current?.abort();
+    };
   }, []);
+
+  // ── Voice: stop everything ─────────────────────────────────────────────
+  const stopEverything = useCallback(() => {
+    activeReadRef.current = false;
+    window.speechSynthesis?.cancel();
+    try { stopRecogRef.current?.abort(); } catch {}
+    stopRecogRef.current = null;
+    setReadPhase("idle");
+    setReadingName("");
+  }, []);
+
+  // ── Voice: speak one utterance, call onEnd when done ──────────────────
+  const speakSingle = useCallback((text: string, onEnd: () => void) => {
+    if (!window.speechSynthesis || !activeReadRef.current) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = speechLang;
+    u.rate = 0.92;
+    u.pitch = 1.05;
+    const voice = pickVoice(speechLang);
+    if (voice) u.voice = voice;
+    u.onend = () => { if (activeReadRef.current) onEnd(); };
+    u.onerror = (e) => {
+      if (activeReadRef.current && e.error !== "interrupted" && e.error !== "canceled") onEnd();
+    };
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }, [speechLang]);
+
+  // ── Voice: listen for yes/no (5-second timeout) ───────────────────────
+  const listenForAnswer = useCallback((onYes: () => void, onNo: () => void) => {
+    const SR = getSR();
+    if (!SR || !activeReadRef.current) { onNo(); return; }
+    const YES = ["yes", "oui", "نعم", "是", "sì", "si", "yeah", "sure", "read", "all", "lire", "tout", "كل"];
+    let done = false;
+    const r = new SR() as SpeechRecognition;
+    r.lang = speechLang;
+    r.maxAlternatives = 5;
+    r.interimResults = false;
+    stopRecogRef.current = r;
+    const finish = (isYes: boolean) => {
+      if (done) return;
+      done = true;
+      try { r.abort(); } catch {}
+      if (isYes) onYes(); else onNo();
+    };
+    const timeout = setTimeout(() => finish(false), 5500);
+    r.onresult = (e: SpeechRecognitionEvent) => {
+      clearTimeout(timeout);
+      const texts = Array.from(e.results[0]).map(x => (x as SpeechRecognitionAlternative).transcript.toLowerCase());
+      finish(texts.some(t => YES.some(y => t.includes(y))));
+    };
+    r.onerror = () => { clearTimeout(timeout); finish(false); };
+    r.onend = () => {};
+    setReadPhase("listening");
+    try { r.start(); } catch { clearTimeout(timeout); onNo(); }
+  }, [speechLang]);
+
+  // ── Voice: continuous "stop" recognition while reading ────────────────
+  const startStopRecognition = useCallback((onStop: () => void) => {
+    const SR = getSR();
+    if (!SR) return;
+    const STOP = ["stop", "arrêt", "arrêtez", "وقف", "停止", "fermati", "para", "halt", "basta"];
+    const r = new SR() as SpeechRecognition;
+    r.continuous = true;
+    r.interimResults = true;
+    r.lang = speechLang;
+    r.onresult = (e: SpeechRecognitionEvent) => {
+      const texts = Array.from(e.results).flatMap(res =>
+        Array.from(res).map(alt => (alt as SpeechRecognitionAlternative).transcript.toLowerCase())
+      );
+      if (texts.some(txt => STOP.some(s => txt.includes(s)))) onStop();
+    };
+    r.onerror = () => {};
+    r.onend = () => {
+      if (activeReadRef.current) try { r.start(); } catch {}
+    };
+    stopRecogRef.current = r;
+    try { r.start(); } catch {}
+  }, [speechLang]);
+
+  // ── Voice: main orchestration ──────────────────────────────────────────
+  const startAutoRead = useCallback(() => {
+    if (!result || !window.speechSynthesis) return;
+    activeReadRef.current = true;
+    hasAutoReadRef.current = true;
+
+    const sorted = [...result.responses].sort((a, b) => b.score - a.score);
+    const winner = sorted[0];
+    const rest = sorted.slice(1);
+
+    setReadPhase("winner");
+    setReadingName(winner.displayName || "");
+
+    const winnerText = `${winner.displayName} gave the best answer, with a score of ${winner.score.toFixed(1)} out of 10. ${winner.answer}`;
+    speakSingle(winnerText, () => {
+      setReadPhase("prompting");
+      setReadingName("");
+      speakSingle(t("askReadMore"), () => {
+        listenForAnswer(
+          () => {
+            setReadPhase("all");
+            let i = 0;
+            startStopRecognition(() => stopEverything());
+            const readNext = () => {
+              if (!activeReadRef.current || i >= rest.length) {
+                if (activeReadRef.current) {
+                  setReadPhase("idle");
+                  setReadingName("");
+                  activeReadRef.current = false;
+                }
+                return;
+              }
+              const card = rest[i++];
+              setReadingName(card.displayName || "");
+              speakSingle(`${card.displayName}, score ${card.score.toFixed(1)}. ${card.answer}`, readNext);
+            };
+            readNext();
+          },
+          () => {
+            activeReadRef.current = false;
+            setReadPhase("idle");
+            setReadingName("");
+          }
+        );
+      });
+    });
+  }, [result, speakSingle, listenForAnswer, startStopRecognition, stopEverything, t]);
+
+  // ── Auto-trigger when result first loads ──────────────────────────────
+  useEffect(() => {
+    if (!result || hasAutoReadRef.current) return;
+    const tid = setTimeout(startAutoRead, 700);
+    return () => clearTimeout(tid);
+  }, [result, startAutoRead]);
 
   if (!result) {
     return (
@@ -100,38 +275,6 @@ export default function Results() {
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
     toast({ title: t("linkCopied"), description: t("linkCopiedDesc"), duration: 2000 });
-  };
-
-  const handleListen = () => {
-    if (!window.speechSynthesis) return;
-
-    if (isSpeaking) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-      return;
-    }
-
-    const sorted = [...result.responses].sort((a, b) => b.score - a.score);
-    const topWinner = sorted[0];
-    const agreed = result.verdictDetails.agreementPoints?.join(". ") ?? "";
-    const differed = result.verdictDetails.disagreementPoints?.join(". ") ?? "";
-
-    const script = [
-      `Question: ${result.question}.`,
-      `${result.verdictDetails.summary}`,
-      `The winning answer from ${topWinner.displayName}: ${topWinner.answer}`,
-      agreed ? `Where the AIs agreed: ${agreed}` : "",
-      differed ? `Where they differed: ${differed}` : "",
-    ].filter(Boolean).join(". ");
-
-    const utterance = new SpeechSynthesisUtterance(script);
-    utterance.rate = 0.95;
-    utterance.pitch = 1;
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-    utteranceRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
-    setIsSpeaking(true);
   };
 
   const sortedResponses = [...result.responses].sort((a, b) => b.score - a.score);
@@ -158,26 +301,31 @@ export default function Results() {
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <Button
-            onClick={() => setLocation("/")}
+            onClick={() => { stopEverything(); setLocation("/"); }}
             className="bg-amber-400 hover:bg-amber-300 text-black font-bold shadow-lg shadow-amber-400/30 border-0"
             aria-label="Start over — go back to the home page to ask a new question"
           >
             <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
             {t("startOver")}
           </Button>
-          {typeof window !== "undefined" && window.speechSynthesis && (
+          {readPhase !== "idle" ? (
+            <Button
+              onClick={stopEverything}
+              className="bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-lg shadow-rose-600/30 border-0 gap-2"
+              aria-label="Stop reading"
+            >
+              <Square className="h-4 w-4 fill-white" aria-hidden="true" />
+              {t("stop")}
+            </Button>
+          ) : (
             <Button
               variant="outline"
-              onClick={handleListen}
-              aria-label={isSpeaking ? "Stop reading aloud" : "Listen — read the verdict and winning answer aloud"}
-              aria-pressed={isSpeaking}
-              className={isSpeaking ? "border-primary text-primary" : "group"}
+              onClick={startAutoRead}
+              className="group"
+              aria-label="Read the winner and all answers aloud"
             >
-              {isSpeaking
-                ? <VolumeX className="mr-2 h-4 w-4" aria-hidden="true" />
-                : <Volume2 className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" aria-hidden="true" />
-              }
-              {isSpeaking ? t("stop") : t("listen")}
+              <Mic className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" aria-hidden="true" />
+              {t("listen")}
             </Button>
           )}
           <Button variant="outline" onClick={handleShare} className="group" aria-label="Copy link to share these results">
@@ -186,6 +334,28 @@ export default function Results() {
           </Button>
         </div>
       </div>
+
+      {/* Reading status bar */}
+      {readPhase !== "idle" && (
+        <div className="mb-6 flex items-center gap-3 px-5 py-3 rounded-xl border border-primary/20 bg-primary/5 animate-in fade-in duration-300">
+          <span className="relative flex h-2.5 w-2.5 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
+          </span>
+          <span className="text-sm text-primary font-medium">
+            {readPhase === "winner" && readingName && `Reading winner: ${readingName}`}
+            {readPhase === "prompting" && "Would you like to hear all answers?"}
+            {readPhase === "listening" && "Listening... say yes or no"}
+            {readPhase === "all" && readingName && `Reading: ${readingName}`}
+          </span>
+          <button
+            onClick={stopEverything}
+            className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors underline"
+          >
+            stop
+          </button>
+        </div>
+      )}
 
       {loadError && (
         <div className="mb-8 rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 text-sm text-foreground/80">

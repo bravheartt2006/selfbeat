@@ -5,7 +5,7 @@ import { useLanguage } from "@/lib/language-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Share2, Trophy, MessageSquareQuote, XCircle, Database,
-  Stethoscope, AlertTriangle, Copy, ChevronRight, Zap, Clock, Hourglass,
+  Stethoscope, AlertTriangle, Copy, ChevronRight, Zap, Clock, Hourglass, Square,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -448,6 +448,7 @@ export default function StreamingResults() {
   const streamStartRef = useRef<number>(Date.now());
   const round2DataRef = useRef<ModelCard[]>([]);
   const verdictRef = useRef<VerdictPayload | null>(null);
+  const streamControllerRef = useRef<AbortController | null>(null);
 
   const handleCopy = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
@@ -462,6 +463,7 @@ export default function StreamingResults() {
 
     streamStartRef.current = Date.now();
     const controller = new AbortController();
+    streamControllerRef.current = controller;
 
     async function run() {
       try {
@@ -664,14 +666,29 @@ export default function StreamingResults() {
             "{question}"
           </h1>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link copied!", duration: 2000 }); }}
-          className="shrink-0 group"
-        >
-          <Share2 className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-          Share
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {phase !== "done" && (
+            <Button
+              onClick={() => {
+                streamControllerRef.current?.abort();
+                setLocation("/");
+              }}
+              className="bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-lg shadow-rose-600/30 border-0 gap-2"
+              aria-label="Stop searching and go home"
+            >
+              <Square className="h-4 w-4 fill-white" aria-hidden="true" />
+              {t("stopSearch")}
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link copied!", duration: 2000 }); }}
+            className="group"
+          >
+            <Share2 className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            Share
+          </Button>
+        </div>
       </div>
 
       {/* Round 1 progress bar — hidden once all answered */}
