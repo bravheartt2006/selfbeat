@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { Activity, Mic, Volume2 } from "lucide-react";
 import { LANGUAGES, LangCode, getLangMeta, translate } from "@/lib/i18n";
 import { useLanguage } from "@/lib/language-context";
 
-// ── Speech recognition helper ──────────────────────────────────────────────
+// ── Speech recognition ─────────────────────────────────────────────────────
 type SR = typeof SpeechRecognition;
 function getSR(): SR | null {
   return (
@@ -13,20 +13,14 @@ function getSR(): SR | null {
   );
 }
 
-// Words a user might say (in any of the 6 languages) → language code
+// Words a user might say in any of the 6 languages → language code
 const VOICE_ALIASES: Record<string, LangCode> = {
-  // English
-  english: "en", anglais: "en", inglés: "en", ingles: "en", inglese: "en", ingilizce: "en",
-  // French
-  french: "fr", français: "fr", francais: "fr", france: "fr", "françaie": "fr",
-  // Arabic
-  arabic: "ar", arab: "ar", arabe: "ar", arabique: "ar", arabie: "ar",
-  // Chinese
+  english: "en", anglais: "en", inglés: "en", ingles: "en", inglese: "en",
+  french: "fr", français: "fr", francais: "fr", france: "fr",
+  arabic: "ar", arab: "ar", arabe: "ar", arabique: "ar",
   chinese: "zh", mandarin: "zh", china: "zh", chinois: "zh", cinese: "zh", chino: "zh",
-  // Italian
-  italian: "it", italiano: "it", italia: "it", italy: "it", italie: "it",
-  // Spanish
-  spanish: "es", español: "es", espanol: "es", spain: "es", espagne: "es", spagnolo: "es",
+  italian: "it", italiano: "it", italia: "it", italy: "it",
+  spanish: "es", español: "es", espanol: "es", spain: "es", spagnolo: "es", espagne: "es",
 };
 
 function pickEnglishVoice(): SpeechSynthesisVoice | null {
@@ -44,11 +38,10 @@ function pickEnglishVoice(): SpeechSynthesisVoice | null {
   );
 }
 
-// Fire the language-specific greeting during a click gesture (bypasses autoplay block)
+// Fire the language-specific greeting (must be called inside a click handler)
 function fireGreeting(code: LangCode) {
   if (!window.speechSynthesis) return;
   const meta = getLangMeta(code);
-  const text = translate(code, "greeting");
   const base = meta.speechLang.split("-")[0].toLowerCase();
   const preferred = [
     "Google US English Female", "Google français", "Google Arabic",
@@ -61,7 +54,7 @@ function fireGreeting(code: LangCode) {
     voices.find((v) => preferred.some((p) => v.name.includes(p))) ||
     voices.find((v) => v.lang.toLowerCase().startsWith(base)) ||
     voices[0] || null;
-  const utterance = new SpeechSynthesisUtterance(text);
+  const utterance = new SpeechSynthesisUtterance(translate(code, "greeting"));
   utterance.pitch = 1.15;
   utterance.rate = 0.88;
   utterance.volume = 0.95;
@@ -72,31 +65,31 @@ function fireGreeting(code: LangCode) {
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
+type VoiceState = "idle" | "speaking" | "listening";
+
 export default function LanguageSelect() {
   const { setLang } = useLanguage();
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [voiceSupported, setVoiceSupported] = useState(false);
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const voiceSupported = !!getSR() && !!window.speechSynthesis;
 
-  // ── Choose a language (from click OR voice match) ─────────────────────
+  // ── Choose a language (click OR voice) ───────────────────────────────
   const choose = (code: LangCode) => {
     recognitionRef.current?.abort();
     recognitionRef.current = null;
     window.speechSynthesis?.cancel();
-    setIsListening(false);
-    setIsSpeaking(false);
-    fireGreeting(code);   // inside click handler — bypasses autoplay policy
+    setVoiceState("idle");
+    fireGreeting(code);   // inside click context — bypasses browser autoplay block
     setLang(code);
   };
 
-  // ── Start speech recognition after prompt finishes ────────────────────
-  const startListening = () => {
+  // ── Start recognition after prompt finishes ───────────────────────────
+  const startRecognition = () => {
     const SR = getSR();
     if (!SR) return;
 
     const recognition = new SR();
-    recognition.lang = "";          // let browser use its best guess
+    recognition.lang = "";
     recognition.interimResults = false;
     recognition.maxAlternatives = 8;
     recognitionRef.current = recognition;
@@ -106,7 +99,6 @@ export default function LanguageSelect() {
         (r) => (r as SpeechRecognitionAlternative).transcript.toLowerCase().trim(),
       );
       for (const text of candidates) {
-        // strip punctuation and try each word
         const words = text.split(/[\s,،.。]+/);
         for (const word of words) {
           const clean = word.replace(/[^\p{L}]/gu, "");
@@ -116,22 +108,22 @@ export default function LanguageSelect() {
           }
         }
       }
-      setIsListening(false);
+      setVoiceState("idle");
     };
 
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend   = () => setIsListening(false);
+    recognition.onerror = () => setVoiceState("idle");
+    recognition.onend   = () => setVoiceState("idle");
 
-    setIsListening(true);
+    setVoiceState("listening");
     recognition.start();
   };
 
-  // ── Speak the language-choice prompt ─────────────────────────────────
+  // ── Speak the prompt — MUST be called inside a click/tap handler ─────
   const speakPrompt = () => {
     if (!window.speechSynthesis) return;
+    setVoiceState("speaking");
 
-    const text =
-      "Choose your language — English, Français, Arabic, Chinese, Italiano, Español";
+    const text = "Choose your language — English, Français, Arabic, Chinese, Italiano, Español";
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.pitch = 1.15;
     utterance.rate  = 0.80;
@@ -140,47 +132,19 @@ export default function LanguageSelect() {
     const voice = pickEnglishVoice();
     if (voice) utterance.voice = voice;
 
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend   = () => { setIsSpeaking(false); startListening(); };
-    utterance.onerror = () => { setIsSpeaking(false); };
+    utterance.onend   = () => startRecognition();
+    utterance.onerror = () => setVoiceState("idle");
 
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
   };
 
-  // ── Mount: attempt auto-speak; add replay button as fallback ─────────
-  useEffect(() => {
-    if (getSR()) setVoiceSupported(true);
-    if (!window.speechSynthesis) return;
-
-    const run = () => speakPrompt();
-    const voices = window.speechSynthesis.getVoices();
-    if (voices.length > 0) {
-      setTimeout(run, 600);
-    } else {
-      let done = false;
-      window.speechSynthesis.onvoiceschanged = () => {
-        if (done) return;
-        done = true;
-        window.speechSynthesis.onvoiceschanged = null;
-        setTimeout(run, 300);
-      };
-      setTimeout(() => { if (!done) { done = true; run(); } }, 1300);
-    }
-
-    return () => {
-      window.speechSynthesis?.cancel();
-      recognitionRef.current?.abort();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ── Render ────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-12">
 
       {/* Logo */}
-      <div className="flex flex-col items-center mb-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
+      <div className="flex flex-col items-center mb-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
         <div className="relative mb-5" aria-hidden="true">
           <Activity className="h-16 w-16 text-primary" />
           <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full animate-pulse" />
@@ -189,43 +153,47 @@ export default function LanguageSelect() {
         <p className="text-base text-muted-foreground font-light">Where AI meets its match — itself.</p>
       </div>
 
-      {/* Prompt + voice status */}
-      <div className="text-center mb-8 animate-in fade-in slide-in-from-bottom-10 duration-700 delay-100">
-        <h2 className="text-2xl md:text-3xl font-semibold mb-2">Choose your language</h2>
+      {/* Heading */}
+      <div className="text-center mb-6 animate-in fade-in slide-in-from-bottom-10 duration-700 delay-100">
+        <h2 className="text-2xl md:text-3xl font-semibold mb-1">Choose your language</h2>
         <p className="text-muted-foreground text-sm">Choisissez / اختر / 选择语言 / Scegli / Elige</p>
-
-        {/* Voice status row */}
-        {voiceSupported && (
-          <div className="mt-4 flex items-center justify-center gap-3 min-h-[32px]">
-            {isSpeaking && (
-              <span className="flex items-center gap-2 text-sm text-primary">
-                <Volume2 className="h-4 w-4 animate-pulse" />
-                Speaking…
-              </span>
-            )}
-            {isListening && (
-              <span className="flex items-center gap-2 text-sm text-amber-400">
-                {/* Pulsing mic ring */}
-                <span className="relative flex h-5 w-5 items-center justify-center">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-amber-400/40 animate-ping" />
-                  <Mic className="relative h-3.5 w-3.5 text-amber-400" />
-                </span>
-                Say your language…
-              </span>
-            )}
-            {!isSpeaking && !isListening && (
-              <button
-                onClick={speakPrompt}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
-                aria-label="Replay voice prompt"
-              >
-                <Volume2 className="h-3.5 w-3.5" />
-                Tap to hear
-              </button>
-            )}
-          </div>
-        )}
       </div>
+
+      {/* Voice guide button — shown when voice is supported and not yet active */}
+      {voiceSupported && (
+        <div className="mb-8 animate-in fade-in duration-700 delay-150">
+          {voiceState === "idle" && (
+            <button
+              onClick={speakPrompt}
+              className="group flex items-center gap-3 px-6 py-3 rounded-full border border-primary/40 bg-primary/10 hover:bg-primary/20 transition-all duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              {/* Pulsing ring */}
+              <span className="relative flex h-5 w-5 items-center justify-center">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-primary/40 animate-ping" />
+                <Volume2 className="relative h-4 w-4 text-primary" />
+              </span>
+              <span className="text-sm font-medium text-primary">Tap to hear — say your language</span>
+            </button>
+          )}
+
+          {voiceState === "speaking" && (
+            <div className="flex items-center gap-2 px-6 py-3 rounded-full border border-primary/30 bg-primary/10 text-sm text-primary">
+              <Volume2 className="h-4 w-4 animate-pulse" />
+              Speaking…
+            </div>
+          )}
+
+          {voiceState === "listening" && (
+            <div className="flex items-center gap-3 px-6 py-3 rounded-full border border-amber-400/40 bg-amber-400/10 text-sm text-amber-400">
+              <span className="relative flex h-5 w-5 items-center justify-center">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-amber-400/40 animate-ping" />
+                <Mic className="relative h-3.5 w-3.5 text-amber-400" />
+              </span>
+              Say your language…
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Language grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full max-w-2xl animate-in fade-in slide-in-from-bottom-12 duration-700 delay-200">
