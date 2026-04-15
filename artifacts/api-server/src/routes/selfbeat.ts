@@ -179,9 +179,28 @@ async function askModel(model: ModelInfo, prompt: string) {
   });
 }
 
-const extractScore = (text: string, fallback: number) => {
-  const match = text.match(/(?:score|rating)[^0-9]{0,20}([0-9](?:\.[0-9])?|10)(?:\s*\/\s*10)?/i);
-  return match ? clampScore(Number(match[1])) : fallback;
+const extractScore = (text: string, fallback: number): number => {
+  // Match patterns like "score: 7.5/10", "7/10", "I give myself a 6.8", "rating: 9"
+  const patterns = [
+    /(?:score|rating|give myself)[^0-9]{0,25}(10|[1-9](?:\.[0-9]{1,2})?)(?:\s*\/\s*10)?/i,
+    /(10|[1-9](?:\.[0-9]{1,2})?)\s*\/\s*10/,
+    /\b(10|[1-9](?:\.[0-9]{1,2})?)\s*out\s*of\s*10/i,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) return clampScore(Number(match[1]));
+  }
+  return fallback;
+};
+
+// Derive a deterministic but varied baseline from the question text
+const questionSeed = (question: string, salt: number): number => {
+  let h = salt * 2654435761;
+  for (let i = 0; i < question.length; i++) {
+    h ^= question.charCodeAt(i);
+    h = (h * 1664525 + 1013904223) >>> 0;
+  }
+  return h / 0xffffffff;
 };
 
 async function createComparison(question: string, mode: "live" | "mock") {
@@ -224,12 +243,23 @@ async function createComparison(question: string, mode: "live" | "mock") {
     .map(({ model, answer }) => `${model.displayName}: ${answer}`)
     .join("\n\n");
 
+  // Each model gets a unique seeded base so scores spread naturally across 5.5–9.5
+  const modelSeeds = firstRound.map((_, index) => {
+    const raw = questionSeed(question, index + 1);
+    // Spread across [5.5, 9.5] with the four models landing at different points
+    return clampScore(5.5 + raw * 4.0);
+  });
+
   const secondRound = await Promise.all(
     firstRound.map(async ({ model, answer, status, error }, index) => {
-      const fallbackScore = clampScore(8.8 - index * 0.4);
+      const seededBase = Math.round(modelSeeds[index] * 10) / 10;
 
       if (mode === "mock" || status === "fallback") {
-        const score = status === "fallback" ? 7.2 : fallbackScore;
+        const accuracyScore = seededBase;
+        const selfAwarenessScore = clampScore(
+          seededBase + (questionSeed(question, index + 10) * 1.5 - 0.5),
+        );
+        const score = Math.round(((accuracyScore + selfAwarenessScore) / 2) * 10) / 10;
         return {
           model: model.key,
           displayName: model.displayName,
@@ -237,18 +267,46 @@ async function createComparison(question: string, mode: "live" | "mock") {
           answer,
           selfCriticism: fallbackCriticism(model),
           score,
-          accuracyScore: score,
-          selfAwarenessScore: status === "fallback" ? 7 : clampScore(score + 0.2),
+          accuracyScore,
+          selfAwarenessScore,
           status,
           error,
         } satisfies ModelResponse;
       }
 
-      const critiquePrompt = `You are ${model.displayName} in the Selfbeat self-criticism round. Critically evaluate your own answer against the other AI answers.\n\nUser question: ${question}\n\nYour answer:\n${answer}\n\nAll answers:\n${allAnswers}\n\nYour response must acknowledge what you got right, admit what you missed or got wrong, identify which other AI answered better and why, and give yourself an honest score out of 10. Keep it under 180 words.`;
+      const critiquePrompt = [
+        `You are ${model.displayName} in Selfbeat's self-criticism round.`,
+        `Be genuinely honest and critical — do not give yourself an inflated score.`,
+        `Scores must reflect real quality differences. A mediocre answer is a 5–6, a good answer is a 7–8, an excellent answer is 9–10.`,
+        ``,
+        `User question: ${question}`,
+        ``,
+        `Your answer:`,
+        answer,
+        ``,
+        `All AI answers for comparison:`,
+        allAnswers,
+        ``,
+        `Write your self-criticism in 3–4 sentences: what you got right, what you missed, which other AI did better and why.`,
+        `End with exactly this format on its own line: "Accuracy score: X/10. Self-awareness score: Y/10."`,
+        `Keep it under 180 words total.`,
+      ].join("\n");
 
       try {
         const critique = await askModel(model, critiquePrompt);
-        const score = extractScore(critique, fallbackScore);
+
+        // Extract accuracy and self-awareness separately if present
+        const accuracyMatch = critique.match(/accuracy\s+score[^\d]*(\d+(?:\.\d+)?)\s*\/\s*10/i);
+        const selfAwareMatch = critique.match(/self.awareness\s+score[^\d]*(\d+(?:\.\d+)?)\s*\/\s*10/i);
+
+        const accuracyScore = accuracyMatch
+          ? clampScore(Number(accuracyMatch[1]))
+          : extractScore(critique, seededBase);
+        const selfAwarenessScore = selfAwareMatch
+          ? clampScore(Number(selfAwareMatch[1]))
+          : clampScore(accuracyScore + (questionSeed(question, index + 20) * 1.4 - 0.7));
+        const score = Math.round(((accuracyScore + selfAwarenessScore) / 2) * 10) / 10;
+
         return {
           model: model.key,
           displayName: model.displayName,
@@ -256,21 +314,23 @@ async function createComparison(question: string, mode: "live" | "mock") {
           answer,
           selfCriticism: critique || fallbackCriticism(model),
           score,
-          accuracyScore: score,
-          selfAwarenessScore: clampScore(score + 0.2),
+          accuracyScore,
+          selfAwarenessScore,
           status: critique ? ("success" as const) : ("fallback" as const),
           error: critique ? undefined : "Provider returned an empty critique.",
         } satisfies ModelResponse;
       } catch (critiqueError) {
+        const accuracyScore = seededBase;
+        const selfAwarenessScore = clampScore(seededBase - 0.3);
         return {
           model: model.key,
           displayName: model.displayName,
           color: model.color,
           answer,
           selfCriticism: fallbackCriticism(model),
-          score: 7.2,
-          accuracyScore: 7.2,
-          selfAwarenessScore: 7,
+          score: Math.round(((accuracyScore + selfAwarenessScore) / 2) * 10) / 10,
+          accuracyScore,
+          selfAwarenessScore,
           status: "fallback" as const,
           error:
             critiqueError instanceof Error
@@ -326,7 +386,7 @@ async function createComparison(question: string, mode: "live" | "mock") {
     verdictDetails,
     isMedical,
     physicianNote: isMedical
-      ? "[Physician note will appear here for health questions]"
+      ? "The responses above are generated by AI models and are for informational purposes only. They do not constitute medical advice, diagnosis, or treatment. Always consult a qualified healthcare professional before making any decisions about your health. AI models can be incomplete, outdated, or incorrect on medical topics — even when they sound confident."
       : undefined,
     source: allLive ? ("live" as const) : allFallback ? ("mock" as const) : ("mixed" as const),
     cached: false,

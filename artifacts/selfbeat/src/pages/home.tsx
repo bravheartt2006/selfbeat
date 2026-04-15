@@ -16,7 +16,7 @@ export default function Home() {
   const { toast } = useToast();
 
   const exampleQuestions = [
-    "What causes anxiety?",
+    "What causes high blood pressure?",
     "How does cryptocurrency work?",
     "What is the best diet for weight loss?",
     "Will AI replace human jobs?"
