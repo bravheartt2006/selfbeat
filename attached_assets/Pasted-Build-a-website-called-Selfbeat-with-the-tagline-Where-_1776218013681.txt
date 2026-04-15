@@ -1,0 +1,121 @@
+Build a website called "Selfbeat" with the 
+tagline "Where AI meets its match — itself."
+
+Users type any question and get answers from 
+multiple AI models simultaneously, then watch 
+those AI models critically evaluate their own 
+answers against each other.
+
+CORE FEATURE — THREE ROUNDS:
+
+Round 1 — All AIs Answer:
+Send the user's question simultaneously to 
+ChatGPT (OpenAI API), Claude (Anthropic API), 
+Gemini (Google API), and DeepSeek API.
+Display all four answers side by side in 
+clean cards. Each card shows the AI name 
+and its logo color.
+
+Round 2 — Self Criticism (The Selfbeat Round):
+Send each AI its own answer plus all other 
+AI answers and ask it to critically evaluate 
+its own response. Each AI must:
+- Acknowledge what it got right
+- Admit what it missed or got wrong
+- Identify which other AI answered better 
+  and why
+- Give itself an honest score out of 10
+
+Display each AI's self-criticism below 
+its original answer in a different colored 
+section labeled "Selfbeat Analysis"
+
+Round 3 — The Verdict:
+Analyze all answers and self-criticisms 
+to produce:
+- Accuracy score for each AI out of 10
+- Self-awareness score for each AI out of 10
+- Best answer for this question with reason
+- Clearest answer for general public
+- Key points all AIs agreed on
+- Key points where AIs disagreed
+- Overall winner with full explanation
+
+PHYSICIAN NOTE FEATURE:
+Detect if the question is health or medical 
+related. If yes show a special section called 
+"Physician Note" with placeholder text: 
+"[Physician note will appear here for health 
+questions]" highlighted in gold color.
+
+HOMEPAGE DESIGN:
+- Large centered logo: Selfbeat
+- Tagline below: "Where AI meets its match — itself"
+- Large search box with placeholder text:
+  "Ask anything. Watch AI judge itself."
+- Four example questions below the search box:
+  "What causes anxiety?"
+  "How does cryptocurrency work?"
+  "What is the best diet for weight loss?"
+  "Will AI replace human jobs?"
+- Animated logos of ChatGPT, Claude, 
+  Gemini and DeepSeek rotating slowly
+  below the search box
+
+RESULTS PAGE DESIGN:
+- Dark navy blue background: #0A0F2C
+- Gold accent color: #C8960C
+- White body text
+- Each AI card has its own color:
+  ChatGPT: #10A37F green
+  Claude: #CC785C orange
+  Gemini: #4285F4 blue
+  DeepSeek: #7B68EE purple
+- Round 1 cards displayed in a 2x2 grid
+- Round 2 Selfbeat Analysis in collapsible
+  section under each card
+- Round 3 Verdict in prominent gold bordered
+  box at the bottom
+- Fully mobile responsive
+- Smooth loading animation with text:
+  "Round 1: Collecting answers..."
+  "Round 2: AIs examining themselves..."
+  "Round 3: Calculating verdict..."
+
+LEADERBOARD PAGE:
+- Show which AI has won most comparisons
+- This week's scores
+- Most self-aware AI this week
+- Most improved AI
+- Funniest self-criticism of the week
+  (manually curated placeholder for now)
+
+ABOUT PAGE:
+- Explain the Selfbeat concept
+- Why AI self-criticism matters
+- Founded by a physician for accurate
+  and honest AI evaluation
+- The three round system explained
+
+NAVIGATION:
+- Logo top left
+- Menu: Home, Leaderboard, About
+- Simple clean header
+
+TECHNICAL REQUIREMENTS:
+- Use environment variables for all API keys
+- Handle API errors gracefully with 
+  user friendly messages
+- Show progress indicator during processing
+- Cache results so same question does not
+  cost API calls twice
+- Copy button on each answer card
+- Share button generates shareable link
+  to full comparison results
+
+IMPORTANT: For now use placeholder mock 
+responses for all four AIs so I can see 
+the complete design and user flow working 
+before adding real API keys. Make the mock 
+responses realistic and different from each 
+other so the design looks genuine.

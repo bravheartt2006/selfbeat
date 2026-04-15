@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Selfbeat"
+version = "1.0.0"
+id = "artifacts/selfbeat"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25848
+
+[services.development]
+run = "pnpm --filter @workspace/selfbeat run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/selfbeat", "run", "build" ]
+publicDir = "artifacts/selfbeat/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25848"
+BASE_PATH = "/"
