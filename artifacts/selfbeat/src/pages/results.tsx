@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { getResult, ComparisonResult } from "@/lib/store";
 import { getSelfbeatComparison } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote, XCircle, Database, RotateCcw } from "lucide-react";
+import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote, XCircle, Database, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek" | "grok" | "mistral" | "llama" | "perplexity" | "cohere" | "qwen" | "copilot";
@@ -54,6 +54,8 @@ export default function Results() {
   const { toast } = useToast();
   const [result, setResult] = useState<ComparisonResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -72,6 +74,10 @@ export default function Results() {
     }
     return () => { active = false; };
   }, [id, setLocation]);
+
+  useEffect(() => {
+    return () => { window.speechSynthesis?.cancel(); };
+  }, []);
 
   if (!result) {
     return (
@@ -92,6 +98,38 @@ export default function Results() {
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
     toast({ title: "Link copied!", description: "Share this comparison with others.", duration: 2000 });
+  };
+
+  const handleListen = () => {
+    if (!window.speechSynthesis) return;
+
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+
+    const sorted = [...result.responses].sort((a, b) => b.score - a.score);
+    const topWinner = sorted[0];
+    const agreed = result.verdictDetails.agreementPoints?.join(". ") ?? "";
+    const differed = result.verdictDetails.disagreementPoints?.join(". ") ?? "";
+
+    const script = [
+      `Question: ${result.question}.`,
+      `${result.verdictDetails.summary}`,
+      `The winning answer from ${topWinner.displayName}: ${topWinner.answer}`,
+      agreed ? `Where the AIs agreed: ${agreed}` : "",
+      differed ? `Where they differed: ${differed}` : "",
+    ].filter(Boolean).join(". ");
+
+    const utterance = new SpeechSynthesisUtterance(script);
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    utteranceRef.current = utterance;
+    window.speechSynthesis.speak(utterance);
+    setIsSpeaking(true);
   };
 
   const sortedResponses = [...result.responses].sort((a, b) => b.score - a.score);
@@ -116,16 +154,32 @@ export default function Results() {
             "{result.question}"
           </h1>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <Button
             onClick={() => setLocation("/")}
             className="bg-amber-400 hover:bg-amber-300 text-black font-bold shadow-lg shadow-amber-400/30 border-0"
+            aria-label="Start over — go back to the home page to ask a new question"
           >
-            <RotateCcw className="mr-2 h-4 w-4" />
+            <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
             Start Over
           </Button>
-          <Button variant="outline" onClick={handleShare} className="group">
-            <Share2 className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+          {typeof window !== "undefined" && window.speechSynthesis && (
+            <Button
+              variant="outline"
+              onClick={handleListen}
+              aria-label={isSpeaking ? "Stop reading aloud" : "Listen — read the verdict and winning answer aloud"}
+              aria-pressed={isSpeaking}
+              className={isSpeaking ? "border-primary text-primary" : "group"}
+            >
+              {isSpeaking
+                ? <VolumeX className="mr-2 h-4 w-4" aria-hidden="true" />
+                : <Volume2 className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" aria-hidden="true" />
+              }
+              {isSpeaking ? "Stop" : "Listen"}
+            </Button>
+          )}
+          <Button variant="outline" onClick={handleShare} className="group" aria-label="Copy link to share these results">
+            <Share2 className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" aria-hidden="true" />
             Share Results
           </Button>
         </div>
