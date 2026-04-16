@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Activity, ArrowRight, AlertCircle, Mic, MicOff, X } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
-import { pickVoice } from "@/lib/voices";
+import { pickVoice, waitForVoices } from "@/lib/voices";
 
 type SR = typeof SpeechRecognition;
 
@@ -108,45 +108,52 @@ export default function Home() {
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(t("greeting"));
-    utterance.pitch = 1.15;
-    utterance.rate = 0.88;
-    utterance.volume = 0.95;
-    utterance.lang = speechLang;
+    const doSpeak = async () => {
+      // Wait for voices to be fully loaded before picking one
+      await waitForVoices(2500);
 
-    const voice = pickVoice(speechLang);
-    if (voice) utterance.voice = voice;
+      const utterance = new SpeechSynthesisUtterance(t("greeting"));
+      utterance.pitch = 1.15;
+      utterance.rate = 0.88;
+      utterance.volume = 0.95;
+      utterance.lang = speechLang;
 
-    setIsGreeting(true);
+      const voice = pickVoice(speechLang);
+      if (voice) utterance.voice = voice;
 
-    // Safety net: if onend never fires (Chrome TTS stall), open the mic anyway
-    const safetyTimer = setTimeout(() => {
-      setIsGreeting(false);
-      startListening();
-    }, 12000);
+      setIsGreeting(true);
 
-    utterance.onend = () => {
-      clearTimeout(safetyTimer);
-      setIsGreeting(false);
-      startListening();
+      // Safety net: if onend never fires (Chrome TTS stall), open the mic anyway
+      const safetyTimer = setTimeout(() => {
+        setIsGreeting(false);
+        startListening();
+      }, 12000);
+
+      utterance.onend = () => {
+        clearTimeout(safetyTimer);
+        setIsGreeting(false);
+        startListening();
+      };
+
+      utterance.onerror = () => {
+        clearTimeout(safetyTimer);
+        setIsGreeting(false);
+        startListening();
+      };
+
+      if (cancelFirst) {
+        // User-triggered replay: cancel current speech, wait 80 ms, then speak.
+        // Chrome silently drops speak() called immediately after cancel().
+        window.speechSynthesis.cancel();
+        setTimeout(() => window.speechSynthesis.speak(utterance), 80);
+      } else {
+        // Auto-play: speak without cancelling so Chrome allows it as a queued
+        // utterance while the language-select greeting is still active.
+        window.speechSynthesis.speak(utterance);
+      }
     };
 
-    utterance.onerror = () => {
-      clearTimeout(safetyTimer);
-      setIsGreeting(false);
-      startListening();
-    };
-
-    if (cancelFirst) {
-      // User-triggered replay: cancel current speech, wait 80 ms, then speak.
-      // Chrome silently drops speak() called immediately after cancel().
-      window.speechSynthesis.cancel();
-      setTimeout(() => window.speechSynthesis.speak(utterance), 80);
-    } else {
-      // Auto-play: speak without cancelling so Chrome allows it as a queued
-      // utterance while the language-select greeting is still active.
-      window.speechSynthesis.speak(utterance);
-    }
+    void doSpeak();
   }, [startListening, t, speechLang]);
 
   useEffect(() => {

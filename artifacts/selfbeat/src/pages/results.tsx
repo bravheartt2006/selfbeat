@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote, XCircle, Database, RotateCcw, Square, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { pickVoice } from "@/lib/voices";
+import { pickVoice, waitForVoices } from "@/lib/voices";
 
 type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek" | "grok" | "mistral" | "llama" | "perplexity" | "cohere" | "qwen" | "copilot";
 
@@ -141,14 +141,18 @@ export default function Results() {
   // ── Voice: speak one utterance, call onEnd when done ──────────────────
   // Chrome bug: calling speak() inside an onend handler is silently dropped.
   // Fix: always defer via setTimeout so we're never inside the onend call stack.
+  // waitForVoices() ensures the browser voice list is fully populated before we
+  // try to pick a language-matched voice — critical for non-English languages.
   const speakSingle = useCallback((text: string, onEnd: () => void, cancelFirst = false) => {
     if (!window.speechSynthesis || !activeReadRef.current) return;
-    const doSpeak = () => {
+    const doSpeak = async () => {
+      if (!activeReadRef.current) return;
+      await waitForVoices(2500);
       if (!activeReadRef.current) return;
       const u = new SpeechSynthesisUtterance(text);
       u.lang = speechLang;
-      u.rate = 0.92;
-      u.pitch = 1.05;
+      u.rate = 0.88;
+      u.pitch = 1.0;
       const voice = pickVoice(speechLang);
       if (voice) u.voice = voice;
       u.onend = () => { if (activeReadRef.current) onEnd(); };
@@ -159,7 +163,7 @@ export default function Results() {
       window.speechSynthesis.speak(u);
     };
     // Always step out of any onend call stack before speaking
-    setTimeout(doSpeak, 60);
+    setTimeout(() => { void doSpeak(); }, 60);
   }, [speechLang]);
 
   // ── Voice: listen for yes/no (5-second timeout) ───────────────────────

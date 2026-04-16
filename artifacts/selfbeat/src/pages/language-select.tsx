@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { Activity, Mic, Volume2 } from "lucide-react";
 import { LANGUAGES, LangCode, getLangMeta, translate } from "@/lib/i18n";
 import { useLanguage } from "@/lib/language-context";
-import { pickVoice } from "@/lib/voices";
+import { pickVoice, waitForVoices } from "@/lib/voices";
 
 // ── Speech recognition ─────────────────────────────────────────────────────
 type SR = typeof SpeechRecognition;
@@ -28,17 +28,23 @@ const VOICE_ALIASES: Record<string, LangCode> = {
 function fireGreeting(code: LangCode) {
   if (!window.speechSynthesis) return;
   const meta = getLangMeta(code);
-  const voice = pickVoice(meta.speechLang);
-  const utterance = new SpeechSynthesisUtterance(translate(code, "greeting"));
-  utterance.pitch = 1.15;
-  utterance.rate = 0.88;
-  utterance.volume = 0.95;
-  utterance.lang = meta.speechLang;
-  if (voice) utterance.voice = voice;
-  // Cancel any current speech, then wait 80 ms — Chrome silently drops speak()
-  // calls made immediately after cancel().
-  window.speechSynthesis.cancel();
-  setTimeout(() => window.speechSynthesis.speak(utterance), 80);
+
+  const doSpeak = async () => {
+    await waitForVoices(2500);
+    const voice = pickVoice(meta.speechLang);
+    const utterance = new SpeechSynthesisUtterance(translate(code, "greeting"));
+    utterance.pitch = 1.15;
+    utterance.rate = 0.88;
+    utterance.volume = 0.95;
+    utterance.lang = meta.speechLang;
+    if (voice) utterance.voice = voice;
+    // Cancel any current speech, then wait 80 ms — Chrome silently drops speak()
+    // calls made immediately after cancel().
+    window.speechSynthesis.cancel();
+    setTimeout(() => window.speechSynthesis.speak(utterance), 80);
+  };
+
+  void doSpeak();
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
