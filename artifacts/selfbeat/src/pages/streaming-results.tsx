@@ -437,7 +437,7 @@ export default function StreamingResults() {
   const params = new URLSearchParams(search);
   const question = params.get("q") ?? "";
 
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [phase, setPhase] = useState<Phase>("connecting");
   const [cards, setCards] = useState<ModelCard[]>(initialCards);
   const [verdict, setVerdict] = useState<VerdictPayload | null>(null);
@@ -470,7 +470,7 @@ export default function StreamingResults() {
         const response = await fetch("/api/selfbeat/comparisons/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: question.trim(), mode: "live" }),
+          body: JSON.stringify({ question: question.trim(), mode: "live", lang }),
           signal: controller.signal,
         });
 

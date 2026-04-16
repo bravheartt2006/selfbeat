@@ -618,17 +618,33 @@ async function createComparison(question: string, mode: "live" | "mock") {
 // ─── STREAMING SSE ENDPOINT ─────────────────────────────────────────────────
 // Emits per-model events progressively so the UI can update as each AI responds.
 
-const buildAnswerPrompt = (model: ModelInfo, question: string) =>
-  `You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 150 words.\n\nQuestion: ${question}`;
+const LANG_NAMES: Record<string, string> = {
+  en: "English",
+  fr: "French",
+  ar: "Arabic",
+  zh: "Chinese (Mandarin)",
+  it: "Italian",
+  es: "Spanish",
+};
+
+const langInstruction = (lang: string) => {
+  const name = LANG_NAMES[lang] ?? "English";
+  if (lang === "en") return "";
+  return ` IMPORTANT: Write your entire response in ${name}. Do not use any other language.`;
+};
+
+const buildAnswerPrompt = (model: ModelInfo, question: string, lang = "en") =>
+  `You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 150 words.${langInstruction(lang)}\n\nQuestion: ${question}`;
 
 const buildCritiquePromptText = (
   model: ModelInfo,
   question: string,
   answer: string,
   allAnswers: string,
+  lang = "en",
 ) =>
   [
-    `You are ${model.displayName} in Selfbeat's self-criticism round.`,
+    `You are ${model.displayName} in Selfbeat's self-criticism round.${langInstruction(lang)}`,
     `Be genuinely honest and critical — do not give yourself an inflated score.`,
     `Scores must reflect real quality differences. A mediocre answer is a 5–6, a good answer is a 7–8, an excellent answer is 9–10.`,
     ``,
@@ -679,6 +695,7 @@ router.post("/selfbeat/comparisons/stream", async (req, res) => {
   const question = parsed.data.question.trim();
   const questionKey = normalizeQuestion(question);
   const isMedical = isMedicalQuestion(question);
+  const lang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
 
   try {
     // Serve from cache (replay all events quickly)
@@ -712,7 +729,7 @@ router.post("/selfbeat/comparisons/stream", async (req, res) => {
 
         let hasRealAnswer = false;
         try {
-          const raw = await withTimeout(askModel(model, buildAnswerPrompt(model, question), 450), 12000);
+          const raw = await withTimeout(askModel(model, buildAnswerPrompt(model, question, lang), 450), 12000);
           if (raw) {
             answer = raw;
             status = "success";
@@ -787,7 +804,7 @@ router.post("/selfbeat/comparisons/stream", async (req, res) => {
           let critique = "";
           try {
             critique = await withTimeout(
-              askModel(model, buildCritiquePromptText(model, question, answer, allAnswers), 300),
+              askModel(model, buildCritiquePromptText(model, question, answer, allAnswers, lang), 300),
               10000,
             );
           } catch {}
