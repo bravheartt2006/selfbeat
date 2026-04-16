@@ -90,7 +90,7 @@ export default function Results() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { t, speechLang } = useLanguage();
+  const { lang, t, speechLang } = useLanguage();
   const [result, setResult] = useState<ComparisonResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -231,10 +231,29 @@ export default function Results() {
     try { r.start(); } catch { clearTimeout(timeout); onContinue(); }
   }, [speechLang]);
 
+  // ── Voice: speak one utterance using ENGLISH voice (for fallback only) ─
+  const speakEnglish = useCallback((text: string, onEnd: () => void) => {
+    if (!window.speechSynthesis || !activeReadRef.current) return;
+    const doSpeak = async () => {
+      if (!activeReadRef.current) return;
+      await waitForVoices(2500);
+      if (!activeReadRef.current) return;
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "en-US";
+      u.rate = 0.88;
+      const voice = pickVoice("en-US");
+      if (voice) u.voice = voice;
+      u.onend = () => { if (activeReadRef.current) onEnd(); };
+      u.onerror = () => { if (activeReadRef.current) onEnd(); };
+      window.speechSynthesis.speak(u);
+    };
+    setTimeout(() => { void doSpeak(); }, 60);
+  }, []);
+
   // ── Voice: main orchestration ──────────────────────────────────────────
   const startAutoRead = useCallback(() => {
     if (!result || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel(); // clear anything already queued
+    window.speechSynthesis.cancel();
     activeReadRef.current = true;
     hasAutoReadRef.current = true;
 
@@ -245,49 +264,92 @@ export default function Results() {
     setReadPhase("winner");
     setReadingName(winner.displayName || "");
 
-    const winnerAnnounce = t("winnerAnnounce")
-      .replace("{name}", winner.displayName || getModelMeta(winner.model).name)
-      .replace("{score}", winner.score.toFixed(1));
-    const winnerText = `${winnerAnnounce} ${stripMarkdown(winner.answer)}`;
-    speakSingle(winnerText, () => {
-      setReadPhase("prompting");
-      setReadingName("");
-      speakSingle(t("askReadMore"), () => {
-        listenForAnswer(
-          () => {
-            setReadPhase("all");
-            let i = 0;
-            const readNext = () => {
-              if (!activeReadRef.current || i >= rest.length) {
-                if (activeReadRef.current) {
-                  setReadPhase("idle");
-                  setReadingName("");
-                  activeReadRef.current = false;
-                }
-                return;
+    const doRead = async () => {
+      // Always wait for the full voice list before attempting to speak
+      await waitForVoices(2500);
+      if (!activeReadRef.current) return;
+
+      const langVoice = pickVoice(speechLang);
+
+      // ── No matching voice for this language ───────────────────────────
+      // Reading mixed Arabic+English (or other language) text with an English
+      // voice produces: English chars are spoken, non-Latin chars silently
+      // skipped. The user hears only model names and numbers — confusing for
+      // the visually impaired. Instead, announce just the winner in English
+      // and show a toast so the user knows to enable the language voice.
+      if (!langVoice && lang !== "en") {
+        const langNames: Record<string, string> = {
+          fr: "French", ar: "Arabic", zh: "Chinese", it: "Italian", es: "Spanish",
+        };
+        const langName = langNames[lang] || lang;
+        const winnerName = winner.displayName || getModelMeta(winner.model).name;
+        const fallbackText = `The winner is ${winnerName} with a score of ${winner.score.toFixed(1)} out of 10. The full answer is shown on screen.`;
+
+        toast({
+          title: `No ${langName} voice on this device`,
+          description: `Install a ${langName} text-to-speech voice in your device settings to hear answers in ${langName}.`,
+          duration: 8000,
+        });
+
+        speakEnglish(fallbackText, () => {
+          activeReadRef.current = false;
+          setReadPhase("idle");
+          setReadingName("");
+        });
+        return;
+      }
+
+      // ── Full cascade — language voice is available ─────────────────────
+      const winnerAnnounce = t("winnerAnnounce")
+        .replace("{name}", winner.displayName || getModelMeta(winner.model).name)
+        .replace("{score}", winner.score.toFixed(1));
+      // Read the announcement and the answer as two separate utterances so
+      // a very long answer does not cause Chrome's mid-utterance stall bug.
+      speakSingle(winnerAnnounce, () => {
+        speakSingle(stripMarkdown(winner.answer), () => {
+          setReadPhase("prompting");
+          setReadingName("");
+          speakSingle(t("askReadMore"), () => {
+            listenForAnswer(
+              () => {
+                setReadPhase("all");
+                let i = 0;
+                const readNext = () => {
+                  if (!activeReadRef.current || i >= rest.length) {
+                    if (activeReadRef.current) {
+                      setReadPhase("idle");
+                      setReadingName("");
+                      activeReadRef.current = false;
+                    }
+                    return;
+                  }
+                  const card = rest[i++];
+                  setReadingName(card.displayName || "");
+                  const cardIntro = t("modelScore")
+                    .replace("{name}", card.displayName || getModelMeta(card.model).name)
+                    .replace("{score}", card.score.toFixed(1));
+                  // Intro and answer as separate utterances to avoid Chrome stall
+                  speakSingle(cardIntro, () => {
+                    speakSingle(stripMarkdown(card.answer), () => {
+                      listenForStop(stopEverything, readNext);
+                    });
+                  });
+                };
+                readNext();
+              },
+              () => {
+                activeReadRef.current = false;
+                setReadPhase("idle");
+                setReadingName("");
               }
-              const card = rest[i++];
-              setReadingName(card.displayName || "");
-              // After each answer ends: briefly open mic for "stop" (1.2 s window)
-              // Chrome blocks the mic during TTS — this gap is the only reliable time.
-              const cardIntro = t("modelScore")
-                .replace("{name}", card.displayName || getModelMeta(card.model).name)
-                .replace("{score}", card.score.toFixed(1));
-              speakSingle(`${cardIntro} ${stripMarkdown(card.answer)}`, () => {
-                listenForStop(stopEverything, readNext);
-              });
-            };
-            readNext();
-          },
-          () => {
-            activeReadRef.current = false;
-            setReadPhase("idle");
-            setReadingName("");
-          }
-        );
+            );
+          });
+        });
       });
-    });
-  }, [result, speakSingle, listenForAnswer, listenForStop, stopEverything, t]);
+    };
+
+    void doRead();
+  }, [result, lang, speechLang, speakSingle, speakEnglish, listenForAnswer, listenForStop, stopEverything, t, toast]);
 
   // ── Auto-trigger when result first loads ──────────────────────────────
   useEffect(() => {
