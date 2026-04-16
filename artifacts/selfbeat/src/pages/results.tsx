@@ -62,6 +62,28 @@ function getSR(): AnySR | null {
   );
 }
 
+// ─── Strip markdown so TTS reads clean prose ───────────────────────────────
+
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, "")           // fenced code blocks
+    .replace(/`[^`]*`/g, "")                  // inline code
+    .replace(/#{1,6}\s+/gm, "")              // headings
+    .replace(/\*\*(.+?)\*\*/g, "$1")          // bold **
+    .replace(/__(.+?)__/g, "$1")              // bold __
+    .replace(/\*(.+?)\*/g, "$1")              // italic *
+    .replace(/_(.+?)_/g, "$1")               // italic _
+    .replace(/\[(.+?)\]\([^)]*\)/g, "$1")    // [link](url)
+    .replace(/^[-*+]\s+/gm, "")              // unordered list bullets
+    .replace(/^\d+\.\s+/gm, "")             // ordered list numbers
+    .replace(/^>\s*/gm, "")                  // blockquotes
+    .replace(/\|[^\n]*\|/g, "")             // table rows
+    .replace(/[-]{3,}/g, "")                // horizontal rules
+    .replace(/\n{2,}/g, " ")                 // multiple newlines → space
+    .replace(/\n/g, " ")                     // remaining newlines → space
+    .trim();
+}
+
 // ─── Main component ────────────────────────────────────────────────────────
 
 export default function Results() {
@@ -219,7 +241,10 @@ export default function Results() {
     setReadPhase("winner");
     setReadingName(winner.displayName || "");
 
-    const winnerText = `${winner.displayName} gave the best answer, with a score of ${winner.score.toFixed(1)} out of 10. ${winner.answer}`;
+    const winnerAnnounce = t("winnerAnnounce")
+      .replace("{name}", winner.displayName || getModelMeta(winner.model).name)
+      .replace("{score}", winner.score.toFixed(1));
+    const winnerText = `${winnerAnnounce} ${stripMarkdown(winner.answer)}`;
     speakSingle(winnerText, () => {
       setReadPhase("prompting");
       setReadingName("");
@@ -241,7 +266,10 @@ export default function Results() {
               setReadingName(card.displayName || "");
               // After each answer ends: briefly open mic for "stop" (1.2 s window)
               // Chrome blocks the mic during TTS — this gap is the only reliable time.
-              speakSingle(`${card.displayName}, score ${card.score.toFixed(1)}. ${card.answer}`, () => {
+              const cardIntro = t("modelScore")
+                .replace("{name}", card.displayName || getModelMeta(card.model).name)
+                .replace("{score}", card.score.toFixed(1));
+              speakSingle(`${cardIntro} ${stripMarkdown(card.answer)}`, () => {
                 listenForStop(stopEverything, readNext);
               });
             };
@@ -351,16 +379,16 @@ export default function Results() {
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
           </span>
           <span className="text-sm text-primary font-medium">
-            {readPhase === "winner" && readingName && `Reading winner: ${readingName}`}
-            {readPhase === "prompting" && "Would you like to hear all answers?"}
-            {readPhase === "listening" && "Listening... say yes or no"}
-            {readPhase === "all" && readingName && `Reading: ${readingName} — say "stop" between answers`}
+            {readPhase === "winner" && readingName && t("readingWinner").replace("{name}", readingName)}
+            {readPhase === "prompting" && t("promptingAll")}
+            {readPhase === "listening" && t("listeningYesNo")}
+            {readPhase === "all" && readingName && t("readingAll").replace("{name}", readingName)}
           </span>
           <button
             onClick={stopEverything}
             className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors underline"
           >
-            stop
+            {t("stop")}
           </button>
         </div>
       )}

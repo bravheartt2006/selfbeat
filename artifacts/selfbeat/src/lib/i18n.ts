@@ -40,7 +40,9 @@ export type TranslationKey =
   | "winner" | "loading" | "loadedFromCache"
   | "agreementPoints" | "disagreementPoints"
   | "physicianNote" | "waiting" | "answered"
-  | "askReadMore" | "stopSearch";
+  | "askReadMore" | "stopSearch"
+  | "winnerAnnounce" | "modelScore"
+  | "readingWinner" | "promptingAll" | "listeningYesNo" | "readingAll";
 
 type Translations = Record<TranslationKey, string>;
 
@@ -89,6 +91,12 @@ const T: Record<LangCode, Translations> = {
     answered:           "Answered",
     askReadMore:        "Would you like me to read the remaining answers? Say yes or no.",
     stopSearch:         "Stop Search",
+    winnerAnnounce:     "{name} gave the best answer with a score of {score} out of 10.",
+    modelScore:         "{name}, score {score}.",
+    readingWinner:      "Reading winner: {name}",
+    promptingAll:       "Would you like to hear all answers?",
+    listeningYesNo:     "Listening... say yes or no",
+    readingAll:         "Reading: {name} — say \"stop\" between answers",
   },
   fr: {
     tagline:            "Là où l'IA rencontre son rival — elle-même.",
@@ -134,6 +142,12 @@ const T: Record<LangCode, Translations> = {
     answered:           "Répondu",
     askReadMore:        "Voulez-vous que je lise les réponses restantes ? Dites oui ou non.",
     stopSearch:         "Arrêter la recherche",
+    winnerAnnounce:     "{name} a donné la meilleure réponse avec un score de {score} sur 10.",
+    modelScore:         "{name}, score {score}.",
+    readingWinner:      "Lecture du gagnant : {name}",
+    promptingAll:       "Voulez-vous entendre toutes les réponses ?",
+    listeningYesNo:     "Écoute... dites oui ou non",
+    readingAll:         "Lecture : {name} — dites « stop » entre les réponses",
   },
   ar: {
     tagline:            "حيث يلتقي الذكاء الاصطناعي بمنافسه — نفسه.",
@@ -179,6 +193,12 @@ const T: Record<LangCode, Translations> = {
     answered:           "تمت الإجابة",
     askReadMore:        "هل تريد أن أقرأ الإجابات المتبقية؟ قل نعم أو لا.",
     stopSearch:         "إيقاف البحث",
+    winnerAnnounce:     "قدّم {name} أفضل إجابة بنتيجة {score} من عشرة.",
+    modelScore:         "{name}، نتيجة {score}.",
+    readingWinner:      "قراءة الفائز: {name}",
+    promptingAll:       "هل تريد سماع جميع الإجابات؟",
+    listeningYesNo:     "أستمع... قل نعم أو لا",
+    readingAll:         "قراءة: {name} — قل «وقف» بين الإجابات",
   },
   zh: {
     tagline:            "人工智能与自身竞争的地方。",
@@ -224,6 +244,12 @@ const T: Record<LangCode, Translations> = {
     answered:           "已回答",
     askReadMore:        "您希望我朗读其余的答案吗？请说是或否。",
     stopSearch:         "停止搜索",
+    winnerAnnounce:     "{name}提供了最佳答案，得分{score}（满分10分）。",
+    modelScore:         "{name}，得分{score}。",
+    readingWinner:      "正在朗读获胜者：{name}",
+    promptingAll:       "是否希望收听所有答案？",
+    listeningYesNo:     "正在收听... 请说是或否",
+    readingAll:         "正在朗读：{name} — 答案之间可说「停止」",
   },
   it: {
     tagline:            "Dove l'IA sfida se stessa.",
@@ -269,6 +295,12 @@ const T: Record<LangCode, Translations> = {
     answered:           "Risposto",
     askReadMore:        "Vuoi che legga le risposte rimanenti? Dì sì o no.",
     stopSearch:         "Ferma la ricerca",
+    winnerAnnounce:     "{name} ha fornito la migliore risposta con un punteggio di {score} su 10.",
+    modelScore:         "{name}, punteggio {score}.",
+    readingWinner:      "Lettura del vincitore: {name}",
+    promptingAll:       "Vuoi ascoltare tutte le risposte?",
+    listeningYesNo:     "In ascolto... dì sì o no",
+    readingAll:         "Lettura: {name} — dì \"stop\" tra le risposte",
   },
   es: {
     tagline:            "Donde la IA se enfrenta a sí misma.",
@@ -314,6 +346,12 @@ const T: Record<LangCode, Translations> = {
     answered:           "Respondido",
     askReadMore:        "¿Quieres que lea las respuestas restantes? Di sí o no.",
     stopSearch:         "Detener búsqueda",
+    winnerAnnounce:     "{name} dio la mejor respuesta con una puntuación de {score} sobre 10.",
+    modelScore:         "{name}, puntuación {score}.",
+    readingWinner:      "Leyendo al ganador: {name}",
+    promptingAll:       "¿Deseas escuchar todas las respuestas?",
+    listeningYesNo:     "Escuchando... di sí o no",
+    readingAll:         "Leyendo: {name} — di «stop» entre respuestas",
   },
 };
 
