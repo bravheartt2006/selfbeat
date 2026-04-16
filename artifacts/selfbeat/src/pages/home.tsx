@@ -99,7 +99,10 @@ export default function Home() {
     setIsListening(true);
   }, [startCountdown, speechLang]);
 
-  const speakGreetingThenListen = useCallback(() => {
+  // cancelFirst=true when the user manually taps the mic (override current speech).
+  // cancelFirst=false for auto-play: we queue while language-select is still speaking
+  // so Chrome treats it as an allowed queued utterance.
+  const speakGreetingThenListen = useCallback((cancelFirst = false) => {
     if (!window.speechSynthesis) {
       startListening();
       return;
@@ -134,10 +137,16 @@ export default function Home() {
       startListening();
     };
 
-    // Cancel first, then wait 80 ms before speaking — Chrome drops the utterance
-    // if speak() is called too soon after cancel().
-    window.speechSynthesis.cancel();
-    setTimeout(() => window.speechSynthesis.speak(utterance), 80);
+    if (cancelFirst) {
+      // User-triggered replay: cancel current speech, wait 80 ms, then speak.
+      // Chrome silently drops speak() called immediately after cancel().
+      window.speechSynthesis.cancel();
+      setTimeout(() => window.speechSynthesis.speak(utterance), 80);
+    } else {
+      // Auto-play: speak without cancelling so Chrome allows it as a queued
+      // utterance while the language-select greeting is still active.
+      window.speechSynthesis.speak(utterance);
+    }
   }, [startListening, t, speechLang]);
 
   useEffect(() => {
@@ -146,20 +155,40 @@ export default function Home() {
   }, []);
 
   // Auto-play greeting then open mic on first mount.
-  // Always play the home-page greeting in the selected language.
-  // The 350 ms delay lets the SPA route change settle; speakGreetingThenListen
-  // calls cancel() internally so it overrides any language-select TTS.
+  //
+  // Two paths:
+  //  A) User just picked a language — the language-select greeting started at
+  //     ~80 ms via fireGreeting(). We check at 150 ms so speech is active,
+  //     wait for it to finish, then open the mic. Chrome allows this because
+  //     the user's tap already unlocked TTS for the session.
+  //  B) User returned to home mid-session (Start Over, nav link, etc.) — no
+  //     active speech, so we try to queue our own greeting. Chrome permits
+  //     this because a recent button click provides user activation.
   useEffect(() => {
     if (greetedRef.current || !window.speechSynthesis) return;
 
     const tid = setTimeout(() => {
       if (greetedRef.current) return;
       greetedRef.current = true;
-      speakGreetingThenListen();
-    }, 350);
+
+      if (window.speechSynthesis.speaking) {
+        // Path A: language-select greeting is playing — wait for it, then mic
+        setIsGreeting(true);
+        const poll = setInterval(() => {
+          if (!window.speechSynthesis.speaking) {
+            clearInterval(poll);
+            setIsGreeting(false);
+            startListening();
+          }
+        }, 100);
+      } else {
+        // Path B: no active speech — play our own greeting
+        speakGreetingThenListen(false);
+      }
+    }, 150);
 
     return () => clearTimeout(tid);
-  }, [speakGreetingThenListen]);
+  }, [speakGreetingThenListen, startListening]);
 
   const toggleListening = () => {
     cancelCountdown();
@@ -168,7 +197,7 @@ export default function Home() {
       setIsListening(false);
       return;
     }
-    speakGreetingThenListen();
+    speakGreetingThenListen(true); // user tapped — cancel current speech and replay
   };
 
   const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
