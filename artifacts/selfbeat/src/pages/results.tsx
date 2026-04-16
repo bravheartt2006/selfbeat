@@ -5,7 +5,7 @@ import { getResult, ComparisonResult } from "@/lib/store";
 import { getSelfbeatComparison } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote, XCircle, Database, RotateCcw, Square, Mic } from "lucide-react";
+import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote, XCircle, Database, RotateCcw, Square, Mic, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { pickVoice, waitForVoices } from "@/lib/voices";
 
@@ -27,6 +27,26 @@ const MODEL_META: Record<ModelKey, { name: string; color: string }> = {
 
 function getModelMeta(key: string) {
   return MODEL_META[key as ModelKey] ?? { name: key, color: "#888888" };
+}
+
+// Chat URLs — platforms that support pre-filled text get the question encoded in the URL
+const MODEL_CHAT_URLS: Record<string, (q: string) => string> = {
+  chatgpt:    (q) => `https://chatgpt.com/?q=${encodeURIComponent(q)}`,
+  claude:     () => `https://claude.ai/new`,
+  gemini:     (q) => `https://gemini.google.com/app?hl=en#q=${encodeURIComponent(q)}`,
+  deepseek:   () => `https://chat.deepseek.com/`,
+  grok:       () => `https://grok.x.ai/`,
+  mistral:    () => `https://chat.mistral.ai/chat`,
+  llama:      () => `https://meta.ai/`,
+  perplexity: (q) => `https://www.perplexity.ai/?q=${encodeURIComponent(q)}`,
+  cohere:     () => `https://coral.cohere.com/`,
+  qwen:       () => `https://chat.qwenlm.com/`,
+  copilot:    (q) => `https://copilot.microsoft.com/?q=${encodeURIComponent(q)}`,
+};
+
+function getModelChatUrl(model: string, question: string) {
+  const fn = MODEL_CHAT_URLS[model];
+  return fn ? fn(question) : "https://www.google.com/";
 }
 
 function hexToRgba(hex: string, alpha: number) {
@@ -550,6 +570,20 @@ export default function Results() {
                     style={{ borderLeft: `3px solid ${getModelMeta(winner.model).color}80` }}>
                     {winner.answer}
                   </blockquote>
+
+                  {/* Continue chatting button */}
+                  <div className="mt-4 pt-3 border-t" style={{ borderColor: getModelMeta(winner.model).color + "30" }}>
+                    <a
+                      href={getModelChatUrl(winner.model, result.question)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-150 hover:opacity-90 active:scale-95 select-none"
+                      style={{ backgroundColor: getModelMeta(winner.model).color, color: "#fff" }}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                      Continue on {winner.displayName || getModelMeta(winner.model).name}
+                    </a>
+                  </div>
                 </div>
               </div>
             )}
