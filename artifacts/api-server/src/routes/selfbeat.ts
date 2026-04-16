@@ -178,7 +178,7 @@ const fallbackCriticism = (model: ModelInfo) => {
   return `I gave a usable answer, but I may have stayed too broad because the live provider was unavailable. I covered the main structure but did not fully benchmark my claims against the other models (${others}). Honest score: 7.0/10.`;
 };
 
-async function generatePhysicianNote(question: string, answers: string): Promise<string | undefined> {
+async function generatePhysicianNote(question: string, answers: string, lang = "en"): Promise<string | undefined> {
   try {
     const { anthropic } = await import("@workspace/integrations-anthropic-ai");
     const prompt = [
@@ -186,7 +186,7 @@ async function generatePhysicianNote(question: string, answers: string): Promise
       `1. Confirms what the AIs got right`,
       `2. Mentions anything important they missed`,
       `3. Reminds the user to consult their doctor for personal medical advice`,
-      `Keep it simple, warm and under 100 words. Do not diagnose or prescribe anything.`,
+      `Keep it simple, warm and under 100 words. Do not diagnose or prescribe anything.${langInstruction(lang)}`,
     ].join("\n");
 
     const response = await anthropic.messages.create({
@@ -344,17 +344,12 @@ const detectGenericResponse = (answer: string, question: string, status: "succes
 async function generateVerdictInsights(
   question: string,
   answers: { displayName: string; answer: string }[],
+  lang = "en",
 ): Promise<{ agreementPoints: string[]; disagreementPoints: string[] }> {
+  const vl = VERDICT_LANG[lang] ?? VERDICT_LANG["en"];
   const fallback = {
-    agreementPoints: [
-      "All models addressed the core question directly.",
-      "All models recognized that context changes the strongest answer.",
-      "All models included at least some limitation or caveat.",
-    ],
-    disagreementPoints: [
-      "The models differed on how much background context to include.",
-      "They weighed clarity, caution, and completeness differently.",
-    ],
+    agreementPoints: vl.insightFallbackAgree,
+    disagreementPoints: vl.insightFallbackDisagree,
   };
 
   try {
@@ -373,7 +368,7 @@ async function generateVerdictInsights(
       `1. Three specific points where the models genuinely agreed (reference actual content, not generic statements).`,
       `2. Two or three specific points where they genuinely differed (reference actual differences in content, tone, or emphasis).`,
       ``,
-      `Respond in this exact JSON format with no extra text:`,
+      `Respond in this exact JSON format with no extra text (write the string values in ${LANG_NAMES[lang] ?? "English"}):`,
       `{"agreementPoints":["...", "...", "..."],"disagreementPoints":["...", "..."]}`,
     ].join("\n");
 
@@ -633,6 +628,58 @@ const langInstruction = (lang: string) => {
   return ` IMPORTANT: Write your entire response in ${name}. Do not use any other language.`;
 };
 
+type VerdictLang = {
+  summary: (name: string) => string;
+  bestAnswer: (name: string) => string;
+  explanation: (name: string, score: string) => string;
+  insightFallbackAgree: string[];
+  insightFallbackDisagree: string[];
+};
+const VERDICT_LANG: Record<string, VerdictLang> = {
+  en: {
+    summary: (n) => `${n} produced the strongest combined performance for this question, with the highest score across accuracy and self-awareness.`,
+    bestAnswer: (n) => `${n} gave the best answer because it earned the highest combined score.`,
+    explanation: (n, s) => `${n} wins with a score of ${s}/10 — the highest across all 10 models for this question.`,
+    insightFallbackAgree: ["All models addressed the core question directly.", "All models recognized that context changes the strongest answer.", "All models included at least some limitation or caveat."],
+    insightFallbackDisagree: ["The models differed on how much background context to include.", "They weighed clarity, caution, and completeness differently."],
+  },
+  fr: {
+    summary: (n) => `${n} a produit les meilleures performances globales pour cette question, avec le score le plus élevé en précision et conscience de soi.`,
+    bestAnswer: (n) => `${n} a donné la meilleure réponse car il a obtenu le score combiné le plus élevé.`,
+    explanation: (n, s) => `${n} gagne avec un score de ${s}/10 — le plus élevé parmi les 10 modèles pour cette question.`,
+    insightFallbackAgree: ["Tous les modèles ont abordé directement la question centrale.", "Tous ont reconnu que le contexte influe sur la meilleure réponse.", "Tous ont inclus au moins une limite ou une nuance."],
+    insightFallbackDisagree: ["Les modèles différaient sur la quantité de contexte à inclure.", "Ils ont pondéré la clarté, la prudence et l'exhaustivité différemment."],
+  },
+  ar: {
+    summary: (n) => `قدّم ${n} أقوى أداء إجمالي لهذا السؤال، بأعلى نتيجة في الدقة والوعي الذاتي.`,
+    bestAnswer: (n) => `قدّم ${n} أفضل إجابة لأنه حصل على أعلى نتيجة مشتركة.`,
+    explanation: (n, s) => `يفوز ${n} بنتيجة ${s}/10 — الأعلى بين جميع النماذج العشرة لهذا السؤال.`,
+    insightFallbackAgree: ["تناولت جميع النماذج السؤال الأساسي مباشرةً.", "أدركت جميع النماذج أن السياق يؤثر في أفضل إجابة.", "تضمّنت جميع النماذج على الأقل قيداً أو تحفظاً واحداً."],
+    insightFallbackDisagree: ["اختلفت النماذج في مقدار السياق الخلفي المُدرج.", "تباينت في الموازنة بين الوضوح والحذر والشمولية."],
+  },
+  zh: {
+    summary: (n) => `${n}在这个问题上表现最强，在准确性和自我意识方面得分最高。`,
+    bestAnswer: (n) => `${n}提供了最佳答案，因为它获得了最高的综合得分。`,
+    explanation: (n, s) => `${n}以${s}/10的得分获胜——这是本题所有10个模型中的最高分。`,
+    insightFallbackAgree: ["所有模型都直接回答了核心问题。", "所有模型都认识到背景会影响最佳答案。", "所有模型都包含了至少一个限制或注意事项。"],
+    insightFallbackDisagree: ["各模型在背景信息的详略程度上存在差异。", "它们在清晰度、谨慎性和完整性的权衡上有所不同。"],
+  },
+  it: {
+    summary: (n) => `${n} ha prodotto le migliori prestazioni complessive per questa domanda, con il punteggio più alto in accuratezza e consapevolezza di sé.`,
+    bestAnswer: (n) => `${n} ha fornito la migliore risposta perché ha ottenuto il punteggio combinato più alto.`,
+    explanation: (n, s) => `${n} vince con un punteggio di ${s}/10 — il più alto tra tutti i 10 modelli per questa domanda.`,
+    insightFallbackAgree: ["Tutti i modelli hanno affrontato direttamente la domanda principale.", "Tutti hanno riconosciuto che il contesto influisce sulla risposta migliore.", "Tutti hanno incluso almeno una limitazione o una precisazione."],
+    insightFallbackDisagree: ["I modelli differivano sulla quantità di contesto da includere.", "Hanno ponderato diversamente chiarezza, cautela ed esaustività."],
+  },
+  es: {
+    summary: (n) => `${n} produjo el mejor rendimiento combinado para esta pregunta, con la puntuación más alta en precisión y autoconciencia.`,
+    bestAnswer: (n) => `${n} dio la mejor respuesta porque obtuvo la puntuación combinada más alta.`,
+    explanation: (n, s) => `${n} gana con una puntuación de ${s}/10 — la más alta entre los 10 modelos para esta pregunta.`,
+    insightFallbackAgree: ["Todos los modelos abordaron la pregunta central directamente.", "Todos reconocieron que el contexto cambia la mejor respuesta.", "Todos incluyeron al menos alguna limitación o advertencia."],
+    insightFallbackDisagree: ["Los modelos diferían en cuánto contexto incluir.", "Ponderaron la claridad, la cautela y la exhaustividad de forma diferente."],
+  },
+};
+
 const buildAnswerPrompt = (model: ModelInfo, question: string, lang = "en") =>
   `You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 150 words.${langInstruction(lang)}\n\nQuestion: ${question}`;
 
@@ -693,9 +740,9 @@ router.post("/selfbeat/comparisons/stream", async (req, res) => {
   }
 
   const question = parsed.data.question.trim();
-  const questionKey = normalizeQuestion(question);
-  const isMedical = isMedicalQuestion(question);
   const lang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
+  const questionKey = `${normalizeQuestion(question)}::${lang}`;
+  const isMedical = isMedicalQuestion(question);
 
   try {
     // Serve from cache (replay all events quickly)
@@ -777,9 +824,10 @@ router.post("/selfbeat/comparisons/stream", async (req, res) => {
     const insightsPromise = generateVerdictInsights(
       question,
       round1AnswerPayload.length > 0 ? round1AnswerPayload : round1Results.map((r) => ({ displayName: r.model.displayName, answer: r.answer })),
+      lang,
     );
     const physicianPromise = isMedical
-      ? generatePhysicianNote(question, round1Results.map((r) => `${r.model.displayName}: ${r.answer}`).join("\n\n"))
+      ? generatePhysicianNote(question, round1Results.map((r) => `${r.model.displayName}: ${r.answer}`).join("\n\n"), lang)
       : Promise.resolve(undefined);
 
     // ── Round 2: all 10 critiques in parallel, emit each as it resolves ──
@@ -852,14 +900,15 @@ router.post("/selfbeat/comparisons/stream", async (req, res) => {
 
     const [insights, physicianNote] = await Promise.all([insightsPromise, physicianPromise]);
 
+    const vl = VERDICT_LANG[lang] ?? VERDICT_LANG["en"];
     const verdictDetails = {
-      summary: `${winner.displayName} produced the strongest combined performance for this question, with the highest score across accuracy and self-awareness.`,
-      bestAnswer: `${winner.displayName} gave the best answer because it earned the highest combined score.`,
+      summary: vl.summary(winner.displayName),
+      bestAnswer: vl.bestAnswer(winner.displayName),
       clearestAnswer: secondRound.find((r) => r.model === "gemini")?.displayName ?? winner.displayName,
       agreementPoints: insights.agreementPoints,
       disagreementPoints: insights.disagreementPoints,
       overallWinner: winner.displayName,
-      explanation: `${winner.displayName} wins with a score of ${winner.score}/10 — the highest across all 10 models for this question.`,
+      explanation: vl.explanation(winner.displayName, String(winner.score)),
     };
 
     const allLive = secondRound.every((r) => r.status === "success");
@@ -911,7 +960,8 @@ router.post("/selfbeat/comparisons", async (req, res) => {
   }
 
   const question = parsed.data.question.trim();
-  const questionKey = normalizeQuestion(question);
+  const lang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
+  const questionKey = `${normalizeQuestion(question)}::${lang}`;
 
   try {
     const cached = await db.query.selfbeatComparisonsTable.findFirst({
