@@ -20,3 +20,5 @@
 export * from "./conversations";
 export * from "./messages";
 export * from "./selfbeatComparisons";
+export * from "./selfbeatUsers";
+export * from "./selfbeatFingerprints";

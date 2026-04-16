@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Activity, ArrowRight, AlertCircle, Mic, MicOff, X } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
+import { useAuth } from "@clerk/react";
 import { pickVoice, waitForVoices } from "@/lib/voices";
 
 type SR = typeof SpeechRecognition;
@@ -19,6 +20,7 @@ function getSR(): SR | null {
 
 export default function Home() {
   const { t, speechLang } = useLanguage();
+  const { isSignedIn } = useAuth();
   const [query, setQuery] = useState("");
   const [, setLocation] = useLocation();
   const [isListening, setIsListening] = useState(false);
@@ -218,6 +220,10 @@ export default function Home() {
     const q = query.trim();
     if (!q) return;
     if (isListening) recognitionRef.current?.stop();
+    if (!isSignedIn) {
+      setLocation(`/sign-in`);
+      return;
+    }
     setLocation(`/stream?q=${encodeURIComponent(q)}`);
   };
 

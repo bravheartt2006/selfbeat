@@ -1,13 +1,37 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+import { getAuth } from "@clerk/express";
 import {
   CreateSelfbeatComparisonBody,
   CreateSelfbeatComparisonResponse,
   GetSelfbeatComparisonParams,
   GetSelfbeatComparisonResponse,
 } from "@workspace/api-zod";
-import { db, selfbeatComparisonsTable } from "@workspace/db";
+import { db, selfbeatComparisonsTable, selfbeatUsersTable } from "@workspace/db";
+
+async function checkAndDeductCredit(userId: string): Promise<boolean> {
+  const [user] = await db
+    .select()
+    .from(selfbeatUsersTable)
+    .where(eq(selfbeatUsersTable.id, userId))
+    .limit(1);
+
+  if (!user) return false;
+
+  const hasUnlimited =
+    user.hasUnlimited && (!user.unlimitedUntil || user.unlimitedUntil > new Date());
+
+  if (hasUnlimited) return true;
+  if (user.credits <= 0) return false;
+
+  await db
+    .update(selfbeatUsersTable)
+    .set({ credits: sql`${selfbeatUsersTable.credits} - 1` })
+    .where(eq(selfbeatUsersTable.id, userId));
+
+  return true;
+}
 
 type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek" | "grok" | "mistral" | "llama" | "perplexity" | "cohere" | "qwen" | "copilot";
 
@@ -739,6 +763,28 @@ router.post("/selfbeat/comparisons/stream", async (req, res) => {
     return;
   }
 
+  // Credit check
+  const auth = getAuth(req);
+  const userId = auth?.userId || null;
+  let isLimited = true;
+  let creditDeducted = false;
+
+  if (userId) {
+    try {
+      const canProceed = await checkAndDeductCredit(userId);
+      if (canProceed) {
+        isLimited = false;
+        creditDeducted = true;
+      }
+    } catch (err) {
+      console.error("Credit check error:", err);
+      // Don't block on credit check errors
+      isLimited = false;
+    }
+  }
+
+  emit("meta", { limited: isLimited });
+
   const question = parsed.data.question.trim();
   const lang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
@@ -751,16 +797,26 @@ router.post("/selfbeat/comparisons/stream", async (req, res) => {
     });
 
     if (cached) {
+      // If limited and we deducted a credit for a cached result, refund it
+      if (isLimited && creditDeducted && userId) {
+        await db
+          .update(selfbeatUsersTable)
+          .set({ credits: sql`${selfbeatUsersTable.credits} + 1` })
+          .where(eq(selfbeatUsersTable.id, userId));
+      }
+
       const r = cached.result as { id: string; responses: ModelResponse[]; verdict: string; verdictDetails: { summary: string; bestAnswer: string; clearestAnswer: string; agreementPoints: string[]; disagreementPoints: string[]; overallWinner: string; explanation: string }; isMedical: boolean; physicianNote?: string };
       emit("cached", { id: r.id });
       for (const resp of r.responses) {
         emit("round1", { model: resp.model, displayName: resp.displayName, color: resp.color, answer: resp.answer, status: resp.status, isGeneric: resp.isGeneric });
       }
-      for (const resp of r.responses) {
-        emit("round2", resp);
+      if (!isLimited) {
+        for (const resp of r.responses) {
+          emit("round2", resp);
+        }
+        emit("verdict", { verdictDetails: r.verdictDetails, isMedical: r.isMedical, physicianNote: r.physicianNote, verdict: r.verdict });
       }
-      emit("verdict", { verdictDetails: r.verdictDetails, isMedical: r.isMedical, physicianNote: r.physicianNote, verdict: r.verdict });
-      emit("done", { id: r.id });
+      emit("done", { id: r.id, limited: isLimited });
       res.end();
       return;
     }
@@ -816,6 +872,13 @@ router.post("/selfbeat/comparisons/stream", async (req, res) => {
     const modelSeeds = round1Results.map((_, i) =>
       clampScore(5.5 + questionSeed(question, i + 1) * 4.0),
     );
+
+    // If limited (no credits), stop here after Round 1
+    if (isLimited) {
+      emit("done", { id: randomUUID(), limited: true });
+      res.end();
+      return;
+    }
 
     // ── Start insights early (only needs Round 1 answers) so it runs in parallel with Round 2 ──
     const round1AnswerPayload = round1Results

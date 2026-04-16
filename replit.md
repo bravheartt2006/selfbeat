@@ -4,15 +4,25 @@
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
-Primary web artifact: **Selfbeat** — a production React/Vite app where users submit any question and watch 10 live AI models (ChatGPT, Claude, Gemini, DeepSeek, Grok, Mistral Large, Llama 3.3, Perplexity Sonar, Cohere Command R+, Qwen 2.5) answer simultaneously, self-critique against each other, and receive a final verdict with AI-generated insights. Tagline: "Where AI meets its match — itself."
+Primary web artifact: **Selfbeat** — a production React/Vite app where users submit any question and watch 10 live AI models (ChatGPT, Claude, Gemini, DeepSeek, Grok, Mistral Large, Llama 3.3, Perplexity Sonar, Cohere Command R+, Qwen 2.5) answer simultaneously, self-critique against each other, and receive a final verdict with AI-generated insights. Tagline: "Where AI meets its match — itself." Physician-founded.
 
 ### Architecture
-- **Home page** → user submits question → instantly navigates to `/stream?q=...` (no blocking call)
-- **Streaming results page** (`/stream`) → makes a POST SSE request to `/api/selfbeat/comparisons/stream`; displays 10 skeleton cards immediately, then updates each card progressively as `round1` (answer), `round2` (critique+scores), and `verdict` events arrive; on `done`, navigates to `/results/{id}` via wouter
+- **Home page** → user submits question → requires sign-in (Clerk) → navigates to `/stream?q=...`
+- **Streaming results page** (`/stream`) → POST SSE to `/api/selfbeat/comparisons/stream`; emits `meta` (limited flag), `round1`, `round2`, `verdict`, `done` events; when `limited: true`, stops after Round 1 and shows blur/upgrade overlay
 - **Results page** (`/results/:id`) → fetches final saved result from PostgreSQL, shows final ranked cards with score bars, verdict, agreement/disagreement points, optional physician note
-- **SSE endpoint** (`POST /api/selfbeat/comparisons/stream`) → emits per-model events as each AI resolves; caches results in PostgreSQL; cache replay is near-instant (~20ms) vs live (~19s)
+- **SSE endpoint** (`POST /api/selfbeat/comparisons/stream`) → checks Clerk auth + credits via `checkAndDeductCredit()`; sets `limited: true` when user has 0 credits; caches results in PostgreSQL
 - **10 AI providers**: OpenAI (ChatGPT), Anthropic (Claude), Google (Gemini), OpenRouter (DeepSeek, Grok, Mistral, Llama, Perplexity, Cohere, Qwen)
 - **Quality features**: refusal detection (rose badge), generic/cached response detection (amber badge), GPT-4o-mini generates agreement/disagreement from actual answer content, winner determined by avg(accuracyScore, selfAwarenessScore)
+
+### Monetization
+- **Auth**: Clerk (Google + Apple Sign-In only — configured via Auth pane in workspace toolbar)
+- **Credits**: 10 free on signup; 1 credit per comparison; tracked in `selfbeat_users` DB table
+- **Fingerprinting**: FingerprintJS (loaded in `CreditsProvider`) — device fingerprint stored in `selfbeat_fingerprints` table
+- **Smart blur**: When user has 0 credits, backend sends `limited: true` → frontend shows Round 1 + blurred Round 2 overlay with upgrade CTA
+- **Pricing page**: `/pricing` — 3 plans: 25 credits/$4.99 (one-time), Monthly unlimited/$9.99, Annual unlimited/$79
+- **Stripe**: Checkout via `/api/stripe/checkout`, portal via `/api/stripe/portal`, webhook at `/api/stripe/webhook` (before express.json!)
+- **User table**: `selfbeat_users` (id, email, credits, stripeCustomerId, stripeSubscriptionId, hasUnlimited, unlimitedUntil)
+- **Fingerprint table**: `selfbeat_fingerprints` (fingerprintId, userId, seenAt)
 
 ## Stack
 

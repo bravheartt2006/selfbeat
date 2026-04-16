@@ -2,10 +2,12 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearch, useLocation } from "wouter";
 import { saveResult } from "@/lib/store";
 import { useLanguage } from "@/lib/language-context";
+import { useCredits } from "@/lib/credits-context";
+import { useAuth } from "@clerk/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Share2, Trophy, MessageSquareQuote, XCircle, Database,
-  Stethoscope, AlertTriangle, Copy, ChevronRight, Zap, Clock, Hourglass, Square,
+  Stethoscope, AlertTriangle, Copy, ChevronRight, Zap, Clock, Hourglass, Square, Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -438,12 +440,15 @@ export default function StreamingResults() {
   const question = params.get("q") ?? "";
 
   const { t, lang } = useLanguage();
+  const { isSignedIn } = useAuth();
+  const { deductCredit } = useCredits();
   const [phase, setPhase] = useState<Phase>("connecting");
   const [cards, setCards] = useState<ModelCard[]>(initialCards);
   const [verdict, setVerdict] = useState<VerdictPayload | null>(null);
   const [isCached, setIsCached] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showRound2, setShowRound2] = useState(false);
+  const [isLimited, setIsLimited] = useState(false);
 
   const streamStartRef = useRef<number>(Date.now());
   const round2DataRef = useRef<ModelCard[]>([]);
@@ -503,6 +508,15 @@ export default function StreamingResults() {
             } catch { continue; }
 
             switch (ev) {
+              case "meta":
+                if (data.limited) {
+                  setIsLimited(true);
+                } else {
+                  // Full comparison — will use 1 credit
+                  deductCredit();
+                }
+                break;
+
               case "cached":
                 setIsCached(true);
                 // For cached replays, auto-show round2 since it's all instant
@@ -568,6 +582,12 @@ export default function StreamingResults() {
               case "done": {
                 setPhase("done");
                 const id = data.id as string;
+
+                // Limited result — show upgrade overlay, don't redirect
+                if (data.limited) {
+                  setIsLimited(true);
+                  break;
+                }
 
                 const finalCards = round2DataRef.current;
                 const finalVerdict = verdictRef.current;
@@ -712,8 +732,60 @@ export default function StreamingResults() {
       {/* Speed strip — after all round 1 done */}
       {round1AllDone && <SpeedStrip cards={cards} />}
 
+      {/* Upgrade gate — shown after Round 1 completes when user has no credits */}
+      {round1AllDone && isLimited && phase === "done" && (
+        <div className="my-8 relative">
+          {/* Blurred preview of Round 2 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 blur-md pointer-events-none select-none opacity-60" aria-hidden="true">
+            {cards.map((card) => (
+              <div key={card.key} className="rounded-xl border border-border/30 bg-card p-4 min-h-[160px]">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: card.color }} />
+                  <span className="font-semibold text-sm" style={{ color: card.color }}>{card.displayName}</span>
+                </div>
+                <div className="space-y-2">
+                  {[90, 75, 60, 80].map((w, i) => (
+                    <div key={i} className="h-2.5 rounded-full bg-muted/60" style={{ width: `${w}%` }} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Overlay */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/70 backdrop-blur-sm rounded-2xl">
+            <div className="text-center max-w-md px-6 py-10">
+              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 border border-primary/20 mx-auto mb-4">
+                <Lock className="h-7 w-7 text-primary" />
+              </div>
+              <h2 className="text-xl font-bold text-foreground mb-2">
+                {t("upgrade_to_unlock") ?? "Subscribe to see AIs judge themselves"}
+              </h2>
+              <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+                {t("upgrade_description") ?? "You've used all your free comparisons. Upgrade to unlock Round 2 self-critiques, scores, and the final verdict."}
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button
+                  onClick={() => setLocation("/pricing")}
+                  className="font-semibold"
+                >
+                  {t("see_plans") ?? "See plans"}
+                </Button>
+                {!isSignedIn && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setLocation("/sign-in")}
+                  >
+                    {t("sign_in") ?? "Sign in"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Round 2 CTA — after all answered, before user clicks reveal */}
-      {round1AllDone && !showRound2 && (
+      {round1AllDone && !showRound2 && !isLimited && (
         <Round2CTA critiquedCount={critiquedCount} onReveal={() => setShowRound2(true)} />
       )}
 
@@ -736,7 +808,7 @@ export default function StreamingResults() {
       )}
 
       {/* Physician note */}
-      {verdict?.isMedical && verdict.physicianNote && (
+      {!isLimited && verdict?.isMedical && verdict.physicianNote && (
         <div className="mb-8 p-5 rounded-xl border border-amber-500/30 bg-amber-500/5">
           <div className="flex items-start gap-4">
             <div className="p-2.5 rounded-full bg-amber-500/20 text-amber-400 shrink-0">
@@ -753,7 +825,7 @@ export default function StreamingResults() {
       )}
 
       {/* Final Verdict */}
-      {verdict && showRound2 && (
+      {!isLimited && verdict && showRound2 && (
         <div className="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-600">
           <Card className="border-primary/40 bg-card shadow-lg shadow-primary/5">
             <CardHeader className="bg-primary/5 border-b border-primary/10">
