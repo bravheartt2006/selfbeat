@@ -285,10 +285,29 @@ export default function Results() {
         const winnerName = winner.displayName || getModelMeta(winner.model).name;
         const fallbackText = `The winner is ${winnerName} with a score of ${winner.score.toFixed(1)} out of 10. The full answer is shown on screen.`;
 
+        // Detect platform and give specific voice installation guidance
+        const ua = navigator.userAgent;
+        const isIOS = /iPad|iPhone|iPod/.test(ua);
+        const isAndroid = /Android/.test(ua);
+        const isMac = /Macintosh/.test(ua) && !isIOS;
+        const isWindows = /Windows/.test(ua);
+        let installHint: string;
+        if (isIOS) {
+          installHint = `On iPhone/iPad: Settings → Accessibility → Spoken Content → Voices → ${langName}.`;
+        } else if (isAndroid) {
+          installHint = `On Android: Settings → Accessibility → Text-to-Speech → Google TTS gear → Install Voice Data → ${langName}.`;
+        } else if (isMac) {
+          installHint = `On Mac: System Settings → Accessibility → Spoken Content → System Voice → Manage Voices → ${langName}.`;
+        } else if (isWindows) {
+          installHint = `On Windows: Settings → Time & Language → Speech → Add voices → search "${langName}".`;
+        } else {
+          installHint = `Add a ${langName} text-to-speech voice in your device or browser language settings.`;
+        }
+
         toast({
           title: `No ${langName} voice on this device`,
-          description: `Install a ${langName} text-to-speech voice in your device settings to hear answers in ${langName}.`,
-          duration: 8000,
+          description: installHint,
+          duration: 12000,
         });
 
         speakEnglish(fallbackText, () => {
