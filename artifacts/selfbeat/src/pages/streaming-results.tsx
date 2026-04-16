@@ -760,15 +760,20 @@ export default function StreamingResults() {
               <h2 className="text-xl font-bold text-foreground mb-2">
                 {t("upgrade_to_unlock") ?? "Subscribe to see AIs judge themselves"}
               </h2>
-              <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+              <p className="text-sm text-muted-foreground mb-1 leading-relaxed">
                 {t("upgrade_description") ?? "You've used all your free comparisons. Upgrade to unlock Round 2 self-critiques, scores, and the final verdict."}
               </p>
+              <div className="flex flex-col gap-1 text-xs text-muted-foreground mb-6">
+                <span>Starter Credits: <strong className="text-foreground">$4.99</strong> for 25 comparisons</span>
+                <span>Pro Monthly: <strong className="text-foreground">$14.99/month</strong> unlimited</span>
+                <span>Pro Annual: <strong className="text-amber-500 font-bold">$99/year</strong> — Save 45% vs monthly</span>
+              </div>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Button
                   onClick={() => setLocation("/pricing")}
-                  className="font-semibold"
+                  className="font-semibold bg-amber-400 hover:bg-amber-300 text-amber-950 border-0"
                 >
-                  {t("see_plans") ?? "See plans"}
+                  {t("see_plans") ?? "See all plans"}
                 </Button>
                 {!isSignedIn && (
                   <Button
