@@ -5,7 +5,7 @@ import { getResult, ComparisonResult } from "@/lib/store";
 import { getSelfbeatComparison } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote, XCircle, Database, RotateCcw, Square, Mic, ExternalLink } from "lucide-react";
+import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote, XCircle, Database, RotateCcw, Square, Mic, ExternalLink, ThumbsUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { pickVoice, waitForVoices } from "@/lib/voices";
 
@@ -118,6 +118,7 @@ export default function Results() {
   type ReadPhase = "idle" | "winner" | "prompting" | "listening" | "all";
   const [readPhase, setReadPhase] = useState<ReadPhase>("idle");
   const [readingName, setReadingName] = useState<string>("");
+  const [userWinner, setUserWinner] = useState<string | null>(null);
 
   const activeReadRef = useRef(false);
   const stopRecogRef = useRef<SpeechRecognition | null>(null);
@@ -421,6 +422,15 @@ export default function Results() {
   const sortedResponses = [...result.responses].sort((a, b) => b.score - a.score);
   const winner = sortedResponses[0];
 
+  // The model shown in the spotlight: user's pick if set, otherwise AI winner
+  const displayWinner = userWinner
+    ? (sortedResponses.find(r => r.model === userWinner) ?? winner)
+    : winner;
+  const isUserPick = userWinner !== null;
+
+  const toggleUserWinner = (model: string) =>
+    setUserWinner(prev => (prev === model ? null : model));
+
   return (
     <div className="container py-8 max-w-[1400px] animate-in fade-in duration-500">
 
@@ -537,51 +547,66 @@ export default function Results() {
             </p>
 
             {/* Winner answer spotlight */}
-            {winner && (
-              <div className="relative overflow-hidden rounded-2xl border-2 p-5"
+            {displayWinner && (
+              <div className="relative overflow-hidden rounded-2xl border-2 p-5 transition-all duration-300"
                 style={{
-                  borderColor: getModelMeta(winner.model).color + "55",
-                  background: `linear-gradient(135deg, ${getModelMeta(winner.model).color}10 0%, transparent 60%)`,
+                  borderColor: getModelMeta(displayWinner.model).color + (isUserPick ? "99" : "55"),
+                  background: `linear-gradient(135deg, ${getModelMeta(displayWinner.model).color}10 0%, transparent 60%)`,
                 }}>
                 {/* Celebration glow */}
                 <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full blur-3xl pointer-events-none opacity-30"
-                  style={{ backgroundColor: getModelMeta(winner.model).color }} />
+                  style={{ backgroundColor: getModelMeta(displayWinner.model).color }} />
                 <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full blur-2xl pointer-events-none opacity-20"
-                  style={{ backgroundColor: getModelMeta(winner.model).color }} />
+                  style={{ backgroundColor: getModelMeta(displayWinner.model).color }} />
 
                 <div className="relative">
-                  {/* Winner label */}
-                  <div className="flex items-center gap-2.5 mb-3">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full shadow-lg"
-                      style={{ backgroundColor: getModelMeta(winner.model).color + "25", border: `1px solid ${getModelMeta(winner.model).color}40` }}>
-                      <Trophy className="h-4 w-4" style={{ color: getModelMeta(winner.model).color }} />
-                    </div>
-                    <div>
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("winner")}</div>
-                      <div className="text-sm font-bold leading-none" style={{ color: getModelMeta(winner.model).color }}>
-                        {winner.displayName || getModelMeta(winner.model).name}
-                        <span className="ml-2 text-[10px] font-mono opacity-70">{winner.score.toFixed(1)}/10</span>
+                  {/* Label row: trophy + model name + label badge */}
+                  <div className="flex items-center justify-between gap-2.5 mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full shadow-lg shrink-0"
+                        style={{ backgroundColor: getModelMeta(displayWinner.model).color + "25", border: `1px solid ${getModelMeta(displayWinner.model).color}40` }}>
+                        <Trophy className="h-4 w-4" style={{ color: getModelMeta(displayWinner.model).color }} />
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                          {isUserPick ? t("yourPick") : t("winner")}
+                        </div>
+                        <div className="text-sm font-bold leading-none" style={{ color: getModelMeta(displayWinner.model).color }}>
+                          {displayWinner.displayName || getModelMeta(displayWinner.model).name}
+                          <span className="ml-2 text-[10px] font-mono opacity-70">{displayWinner.score.toFixed(1)}/10</span>
+                        </div>
                       </div>
                     </div>
+                    {/* Show AI winner badge when user has made their own pick */}
+                    {isUserPick && (
+                      <span className="shrink-0 text-[9px] font-bold px-2 py-1 rounded-full border text-muted-foreground border-border/60">
+                        {t("aiWinner")}: {winner.displayName || getModelMeta(winner.model).name}
+                      </span>
+                    )}
                   </div>
+
+                  {/* Override note */}
+                  {isUserPick && (
+                    <p className="text-[10px] text-muted-foreground mb-2 italic">{t("overrideNote")}</p>
+                  )}
 
                   {/* Answer text */}
                   <blockquote className="text-sm leading-relaxed text-foreground/90 pl-4"
-                    style={{ borderLeft: `3px solid ${getModelMeta(winner.model).color}80` }}>
-                    {winner.answer}
+                    style={{ borderLeft: `3px solid ${getModelMeta(displayWinner.model).color}80` }}>
+                    {displayWinner.answer}
                   </blockquote>
 
                   {/* Continue chatting button */}
-                  <div className="mt-4 pt-3 border-t" style={{ borderColor: getModelMeta(winner.model).color + "30" }}>
+                  <div className="mt-4 pt-3 border-t" style={{ borderColor: getModelMeta(displayWinner.model).color + "30" }}>
                     <a
-                      href={getModelChatUrl(winner.model, result.question)}
+                      href={getModelChatUrl(displayWinner.model, result.question)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-150 hover:opacity-90 active:scale-95 select-none"
-                      style={{ backgroundColor: getModelMeta(winner.model).color, color: "#fff" }}
+                      style={{ backgroundColor: getModelMeta(displayWinner.model).color, color: "#fff" }}
                     >
                       <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                      Continue on {winner.displayName || getModelMeta(winner.model).name}
+                      Continue on {displayWinner.displayName || getModelMeta(displayWinner.model).name}
                     </a>
                   </div>
                 </div>
@@ -675,8 +700,15 @@ export default function Results() {
                     <CardTitle className="font-serif text-base leading-tight" style={{ color: hexColor }}>
                       {res.displayName || meta.name}
                     </CardTitle>
-                    {rank === 0 && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">WINNER</span>
+                    {/* Badges: AI winner (when no user pick) or user's pick */}
+                    {userWinner === res.model && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white"
+                        style={{ backgroundColor: hexColor }}>
+                        {t("yourPick").toUpperCase()}
+                      </span>
+                    )}
+                    {!userWinner && rank === 0 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">AI WINNER</span>
                     )}
                   </div>
                   <div className="text-right shrink-0 ml-2">
@@ -738,7 +770,24 @@ export default function Results() {
                 </div>
               </CardContent>
 
-              <CardFooter className="pt-3 border-t border-border/30 justify-end">
+              <CardFooter className="pt-3 border-t border-border/30 flex justify-between items-center">
+                {/* Thumbs-up: pick this model as your winner */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => toggleUserWinner(res.model)}
+                  className="text-xs transition-colors"
+                  style={userWinner === res.model
+                    ? { color: hexColor, fontWeight: 700 }
+                    : { color: "var(--muted-foreground)" }}
+                >
+                  <ThumbsUp
+                    className="h-3.5 w-3.5 mr-1.5"
+                    style={userWinner === res.model ? { fill: hexColor, stroke: hexColor } : {}}
+                  />
+                  {userWinner === res.model ? t("yourPick") : t("pickAsWinner")}
+                </Button>
+
                 <Button
                   variant="ghost"
                   size="sm"

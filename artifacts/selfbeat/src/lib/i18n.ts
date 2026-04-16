@@ -42,7 +42,8 @@ export type TranslationKey =
   | "physicianNote" | "waiting" | "answered"
   | "askReadMore" | "stopSearch"
   | "winnerAnnounce" | "modelScore"
-  | "readingWinner" | "promptingAll" | "listeningYesNo" | "readingAll";
+  | "readingWinner" | "promptingAll" | "listeningYesNo" | "readingAll"
+  | "pickAsWinner" | "yourPick" | "aiWinner" | "overrideNote";
 
 type Translations = Record<TranslationKey, string>;
 
@@ -97,6 +98,10 @@ const T: Record<LangCode, Translations> = {
     promptingAll:       "Would you like to hear all answers?",
     listeningYesNo:     "Listening... say yes or no",
     readingAll:         "Reading: {name} — say \"stop\" between answers",
+    pickAsWinner:       "My Pick",
+    yourPick:           "Your Pick",
+    aiWinner:           "AI Winner",
+    overrideNote:       "You overrode the AI verdict",
   },
   fr: {
     tagline:            "Là où l'IA rencontre son rival — elle-même.",
@@ -148,6 +153,10 @@ const T: Record<LangCode, Translations> = {
     promptingAll:       "Voulez-vous entendre toutes les réponses ?",
     listeningYesNo:     "Écoute... dites oui ou non",
     readingAll:         "Lecture : {name} — dites « stop » entre les réponses",
+    pickAsWinner:       "Mon choix",
+    yourPick:           "Votre choix",
+    aiWinner:           "Gagnant IA",
+    overrideNote:       "Vous avez remplacé le verdict de l'IA",
   },
   ar: {
     tagline:            "حيث يلتقي الذكاء الاصطناعي بمنافسه — نفسه.",
@@ -199,6 +208,10 @@ const T: Record<LangCode, Translations> = {
     promptingAll:       "هل تريد سماع جميع الإجابات؟",
     listeningYesNo:     "أستمع... قل نعم أو لا",
     readingAll:         "قراءة: {name} — قل «وقف» بين الإجابات",
+    pickAsWinner:       "اختياري",
+    yourPick:           "اختيارك",
+    aiWinner:           "فائز الذكاء الاصطناعي",
+    overrideNote:       "لقد تجاوزت حكم الذكاء الاصطناعي",
   },
   zh: {
     tagline:            "人工智能与自身竞争的地方。",
@@ -250,6 +263,10 @@ const T: Record<LangCode, Translations> = {
     promptingAll:       "是否希望收听所有答案？",
     listeningYesNo:     "正在收听... 请说是或否",
     readingAll:         "正在朗读：{name} — 答案之间可说「停止」",
+    pickAsWinner:       "我的选择",
+    yourPick:           "您的选择",
+    aiWinner:           "AI获胜者",
+    overrideNote:       "您已覆盖AI裁决",
   },
   it: {
     tagline:            "Dove l'IA sfida se stessa.",
@@ -301,6 +318,10 @@ const T: Record<LangCode, Translations> = {
     promptingAll:       "Vuoi ascoltare tutte le risposte?",
     listeningYesNo:     "In ascolto... dì sì o no",
     readingAll:         "Lettura: {name} — dì \"stop\" tra le risposte",
+    pickAsWinner:       "La mia scelta",
+    yourPick:           "La tua scelta",
+    aiWinner:           "Vincitore IA",
+    overrideNote:       "Hai sostituito il verdetto dell'IA",
   },
   es: {
     tagline:            "Donde la IA se enfrenta a sí misma.",
@@ -352,6 +373,10 @@ const T: Record<LangCode, Translations> = {
     promptingAll:       "¿Deseas escuchar todas las respuestas?",
     listeningYesNo:     "Escuchando... di sí o no",
     readingAll:         "Leyendo: {name} — di «stop» entre respuestas",
+    pickAsWinner:       "Mi elección",
+    yourPick:           "Tu elección",
+    aiWinner:           "Ganador IA",
+    overrideNote:       "Has anulado el veredicto de la IA",
   },
 };
 
