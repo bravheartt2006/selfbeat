@@ -770,13 +770,13 @@ export default function Results() {
                 </div>
               </CardContent>
 
-              <CardFooter className="pt-3 border-t border-border/30 flex justify-between items-center">
+              <CardFooter className="pt-3 border-t border-border/30 flex justify-between items-center gap-2">
                 {/* Thumbs-up: pick this model as your winner */}
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => toggleUserWinner(res.model)}
-                  className="text-xs transition-colors"
+                  className="text-xs transition-colors shrink-0"
                   style={userWinner === res.model
                     ? { color: hexColor, fontWeight: 700 }
                     : { color: "var(--muted-foreground)" }}
@@ -788,15 +788,29 @@ export default function Results() {
                   {userWinner === res.model ? t("yourPick") : t("pickAsWinner")}
                 </Button>
 
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleCopy(`Prompt: ${result.question}\n\n${res.displayName || meta.name} Answer:\n${res.answer}\n\nSelf-Critique:\n${res.selfCriticism}`)}
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <Copy className="h-3 w-3 mr-2" />
-                  {t("copyText")}
-                </Button>
+                <div className="flex items-center gap-1">
+                  {/* Continue chatting on this model's platform */}
+                  <a
+                    href={getModelChatUrl(res.model, result.question)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all duration-150 hover:opacity-85 active:scale-95 select-none"
+                    style={{ backgroundColor: hexColor + "20", color: hexColor, border: `1px solid ${hexColor}40` }}
+                  >
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                    Continue
+                  </a>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleCopy(`Prompt: ${result.question}\n\n${res.displayName || meta.name} Answer:\n${res.answer}\n\nSelf-Critique:\n${res.selfCriticism}`)}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <Copy className="h-3 w-3 mr-2" />
+                    {t("copyText")}
+                  </Button>
+                </div>
               </CardFooter>
             </Card>
           );
