@@ -123,6 +123,7 @@ export default function Results() {
   const activeReadRef = useRef(false);
   const stopRecogRef = useRef<SpeechRecognition | null>(null);
   const hasAutoReadRef = useRef(false);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -155,8 +156,46 @@ export default function Results() {
     window.speechSynthesis?.cancel();
     try { stopRecogRef.current?.abort(); } catch {}
     stopRecogRef.current = null;
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
     setReadPhase("idle");
     setReadingName("");
+  }, []);
+
+  // ── Voice: cloud TTS fallback (OpenAI) ───────────────────────────────
+  // Called when the device has no local voice for the selected language.
+  // Fetches audio from the backend and plays it via an Audio element so the
+  // stop button can pause it mid-playback.
+  const speakViaCloud = useCallback(async (text: string, onEnd: () => void) => {
+    if (!activeReadRef.current) return;
+    try {
+      const response = await fetch("/api/selfbeat/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!response.ok) throw new Error("TTS request failed");
+      const blob = await response.blob();
+      if (!activeReadRef.current) return;
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      currentAudioRef.current = audio;
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        currentAudioRef.current = null;
+        if (activeReadRef.current) onEnd();
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        currentAudioRef.current = null;
+        if (activeReadRef.current) onEnd();
+      };
+      await audio.play();
+    } catch {
+      if (activeReadRef.current) onEnd();
+    }
   }, []);
 
   // ── Voice: speak one utterance, call onEnd when done ──────────────────
@@ -164,17 +203,27 @@ export default function Results() {
   // Fix: always defer via setTimeout so we're never inside the onend call stack.
   // waitForVoices() ensures the browser voice list is fully populated before we
   // try to pick a language-matched voice — critical for non-English languages.
+  // If no local voice is found for a non-English language, we fall back to the
+  // OpenAI cloud TTS endpoint so Arabic/Chinese/etc. always work identically
+  // to French regardless of whether the device has the voice pack installed.
   const speakSingle = useCallback((text: string, onEnd: () => void, cancelFirst = false) => {
     if (!window.speechSynthesis || !activeReadRef.current) return;
     const doSpeak = async () => {
       if (!activeReadRef.current) return;
       await waitForVoices(2500);
       if (!activeReadRef.current) return;
+      const voice = pickVoice(speechLang);
+
+      // No local voice for this language — use cloud TTS
+      if (!voice && lang !== "en") {
+        await speakViaCloud(text, onEnd);
+        return;
+      }
+
       const u = new SpeechSynthesisUtterance(text);
       u.lang = speechLang;
       u.rate = 0.88;
       u.pitch = 1.0;
-      const voice = pickVoice(speechLang);
       if (voice) u.voice = voice;
       u.onend = () => { if (activeReadRef.current) onEnd(); };
       u.onerror = (e) => {
@@ -185,7 +234,7 @@ export default function Results() {
     };
     // Always step out of any onend call stack before speaking
     setTimeout(() => { void doSpeak(); }, 60);
-  }, [speechLang]);
+  }, [speechLang, lang, speakViaCloud]);
 
   // ── Voice: listen for yes/no (5-second timeout) ───────────────────────
   const listenForAnswer = useCallback((onYes: () => void, onNo: () => void) => {
@@ -285,61 +334,12 @@ export default function Results() {
     setReadPhase("winner");
     setReadingName(winner.displayName || "");
 
-    const doRead = async () => {
-      // Always wait for the full voice list before attempting to speak
-      await waitForVoices(2500);
+    const doRead = () => {
       if (!activeReadRef.current) return;
 
-      const langVoice = pickVoice(speechLang);
-
-      // ── No matching voice for this language ───────────────────────────
-      // Reading mixed Arabic+English (or other language) text with an English
-      // voice produces: English chars are spoken, non-Latin chars silently
-      // skipped. The user hears only model names and numbers — confusing for
-      // the visually impaired. Instead, announce just the winner in English
-      // and show a toast so the user knows to enable the language voice.
-      if (!langVoice && lang !== "en") {
-        const langNames: Record<string, string> = {
-          fr: "French", ar: "Arabic", zh: "Chinese", it: "Italian", es: "Spanish",
-        };
-        const langName = langNames[lang] || lang;
-        const winnerName = winner.displayName || getModelMeta(winner.model).name;
-        const fallbackText = `The winner is ${winnerName} with a score of ${winner.score.toFixed(1)} out of 10. The full answer is shown on screen.`;
-
-        // Detect platform and give specific voice installation guidance
-        const ua = navigator.userAgent;
-        const isIOS = /iPad|iPhone|iPod/.test(ua);
-        const isAndroid = /Android/.test(ua);
-        const isMac = /Macintosh/.test(ua) && !isIOS;
-        const isWindows = /Windows/.test(ua);
-        let installHint: string;
-        if (isIOS) {
-          installHint = `On iPhone/iPad: Settings → Accessibility → Spoken Content → Voices → ${langName}.`;
-        } else if (isAndroid) {
-          installHint = `On Android: Settings → Accessibility → Text-to-Speech → Google TTS gear → Install Voice Data → ${langName}.`;
-        } else if (isMac) {
-          installHint = `On Mac: System Settings → Accessibility → Spoken Content → System Voice → Manage Voices → ${langName}.`;
-        } else if (isWindows) {
-          installHint = `On Windows: Settings → Time & Language → Speech → Add voices → search "${langName}".`;
-        } else {
-          installHint = `Add a ${langName} text-to-speech voice in your device or browser language settings.`;
-        }
-
-        toast({
-          title: `No ${langName} voice on this device`,
-          description: installHint,
-          duration: 12000,
-        });
-
-        speakEnglish(fallbackText, () => {
-          activeReadRef.current = false;
-          setReadPhase("idle");
-          setReadingName("");
-        });
-        return;
-      }
-
-      // ── Full cascade — language voice is available ─────────────────────
+      // ── Full cascade ───────────────────────────────────────────────────
+      // speakSingle handles local voice when available, and transparently
+      // falls back to OpenAI cloud TTS when no local voice is installed.
       const winnerAnnounce = t("winnerAnnounce")
         .replace("{name}", winner.displayName || getModelMeta(winner.model).name)
         .replace("{score}", winner.score.toFixed(1));
@@ -388,8 +388,8 @@ export default function Results() {
       });
     };
 
-    void doRead();
-  }, [result, lang, speechLang, speakSingle, speakEnglish, listenForAnswer, listenForStop, stopEverything, t, toast]);
+    doRead();
+  }, [result, lang, speechLang, speakSingle, listenForAnswer, listenForStop, stopEverything, t]);
 
   // ── Auto-trigger when result first loads ──────────────────────────────
   useEffect(() => {

@@ -1022,4 +1022,24 @@ router.get("/selfbeat/comparisons/:id", async (req, res) => {
   res.json(result);
 });
 
+// ── Cloud TTS endpoint ────────────────────────────────────────────────────
+// Used by the frontend as a fallback when the device has no local voice for
+// the selected language (e.g. Arabic on a machine without an Arabic TTS pack).
+// Uses gpt-audio via chat.completions so it works through the Replit proxy.
+router.post("/selfbeat/tts", async (req, res) => {
+  const { text } = req.body as { text?: string };
+  if (!text || typeof text !== "string" || text.trim() === "") {
+    return res.status(400).json({ error: "text is required" });
+  }
+  try {
+    const { textToSpeech } = await import("@workspace/integrations-openai-ai-server/audio");
+    const audioBuffer = await textToSpeech(text.slice(0, 4096), "nova", "mp3");
+    res.setHeader("Content-Type", "audio/mpeg");
+    res.setHeader("Cache-Control", "no-cache");
+    res.send(audioBuffer);
+  } catch {
+    res.status(500).json({ error: "TTS generation failed" });
+  }
+});
+
 export default router;
