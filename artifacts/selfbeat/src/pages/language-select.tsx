@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
-import { Activity, Mic, Volume2 } from "lucide-react";
+import { Mic, Volume2 } from "lucide-react";
+import { SelfbeatLogo } from "@/components/SelfbeatLogo";
 import { LANGUAGES, LangCode, getLangMeta, translate } from "@/lib/i18n";
 import { useLanguage } from "@/lib/language-context";
 import { pickVoice, waitForVoices } from "@/lib/voices";
@@ -129,7 +130,7 @@ export default function LanguageSelect() {
       {/* Logo */}
       <div className="flex flex-col items-center mb-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
         <div className="relative mb-5" aria-hidden="true">
-          <Activity className="h-16 w-16 text-primary" />
+          <SelfbeatLogo size={64} className="text-primary" />
           <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full animate-pulse" />
         </div>
         <h1 className="text-4xl md:text-5xl font-bold font-serif tracking-tight mb-3">Selfbeat</h1>

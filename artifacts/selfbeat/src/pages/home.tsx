@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Activity, ArrowRight, AlertCircle, Mic, MicOff, X } from "lucide-react";
+import { ArrowRight, AlertCircle, Mic, MicOff, X } from "lucide-react";
+import { SelfbeatLogo } from "@/components/SelfbeatLogo";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@clerk/react";
 import { pickVoice, waitForVoices } from "@/lib/voices";
@@ -237,7 +238,7 @@ export default function Home() {
       <div className="text-center max-w-4xl mx-auto mb-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
         <div className="flex justify-center mb-6">
           <div className="relative" aria-hidden="true">
-            <Activity className="h-20 w-20 text-primary" />
+            <SelfbeatLogo size={80} className="text-primary" />
             <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full animate-pulse" />
           </div>
         </div>

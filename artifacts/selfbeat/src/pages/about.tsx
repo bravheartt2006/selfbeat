@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, ShieldCheck, Target, Zap } from "lucide-react";
+import { ShieldCheck, Target, Zap } from "lucide-react";
+import { SelfbeatLogo } from "@/components/SelfbeatLogo";
 
 export default function About() {
   return (
@@ -41,7 +42,7 @@ export default function About() {
 
       <div className="relative p-8 rounded-2xl border border-primary/20 bg-primary/5 mb-16">
         <div className="absolute top-0 right-0 p-6 opacity-10">
-          <Activity className="h-32 w-32" />
+          <SelfbeatLogo size={128} />
         </div>
         <h2 className="text-3xl font-serif font-bold mb-6 text-primary relative z-10">Physician Founded</h2>
         <div className="space-y-4 text-lg text-foreground/90 relative z-10 max-w-2xl leading-relaxed">

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, Globe, Check, Coins, LogOut, ChevronDown } from "lucide-react";
+import { Globe, Check, Coins, LogOut, ChevronDown } from "lucide-react";
+import { SelfbeatLogo } from "@/components/SelfbeatLogo";
 import { useLanguage } from "@/lib/language-context";
 import { useCredits } from "@/lib/credits-context";
 import { useAuth, useUser } from "@clerk/react";
@@ -33,7 +34,7 @@ export default function Navbar() {
         {/* Logo + nav */}
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
-            <Activity className="h-6 w-6 text-primary" />
+            <SelfbeatLogo size={26} className="text-primary" />
             <span className="font-serif font-bold text-xl tracking-tight">Selfbeat</span>
           </Link>
           <div className="hidden md:flex gap-5">
