@@ -35,8 +35,10 @@ function fireGreeting(code: LangCode) {
   utterance.volume = 0.95;
   utterance.lang = meta.speechLang;
   if (voice) utterance.voice = voice;
+  // Cancel any current speech, then wait 80 ms — Chrome silently drops speak()
+  // calls made immediately after cancel().
   window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
+  setTimeout(() => window.speechSynthesis.speak(utterance), 80);
 }
 
 // ── Component ──────────────────────────────────────────────────────────────

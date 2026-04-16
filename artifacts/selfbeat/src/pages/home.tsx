@@ -116,18 +116,28 @@ export default function Home() {
 
     setIsGreeting(true);
 
+    // Safety net: if onend never fires (Chrome TTS stall), open the mic anyway
+    const safetyTimer = setTimeout(() => {
+      setIsGreeting(false);
+      startListening();
+    }, 12000);
+
     utterance.onend = () => {
+      clearTimeout(safetyTimer);
       setIsGreeting(false);
       startListening();
     };
 
     utterance.onerror = () => {
+      clearTimeout(safetyTimer);
       setIsGreeting(false);
       startListening();
     };
 
+    // Cancel first, then wait 80 ms before speaking — Chrome drops the utterance
+    // if speak() is called too soon after cancel().
     window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
+    setTimeout(() => window.speechSynthesis.speak(utterance), 80);
   }, [startListening, t, speechLang]);
 
   useEffect(() => {
@@ -136,37 +146,20 @@ export default function Home() {
   }, []);
 
   // Auto-play greeting then open mic on first mount.
-  // Strategy: wait 250 ms so that fireGreeting() from language-select has time to
-  // set window.speechSynthesis.speaking = true. Then:
-  //  • if already speaking  → hook into it (no double-play)
-  //  • if not speaking      → speak ourselves (works because the user's tap on
-  //                           language-select counts as a gesture for the whole SPA)
+  // Always play the home-page greeting in the selected language.
+  // The 350 ms delay lets the SPA route change settle; speakGreetingThenListen
+  // calls cancel() internally so it overrides any language-select TTS.
   useEffect(() => {
     if (greetedRef.current || !window.speechSynthesis) return;
 
     const tid = setTimeout(() => {
       if (greetedRef.current) return;
       greetedRef.current = true;
-
-      if (window.speechSynthesis.speaking) {
-        // Greeting already playing from language-select — just wait for it to end
-        setIsGreeting(true);
-        const poll = setInterval(() => {
-          if (!window.speechSynthesis.speaking) {
-            clearInterval(poll);
-            setIsGreeting(false);
-            startListening();
-          }
-        }, 150);
-        return;
-      }
-
-      // Speak the greeting now
       speakGreetingThenListen();
-    }, 250);
+    }, 350);
 
     return () => clearTimeout(tid);
-  }, [speakGreetingThenListen, startListening]);
+  }, [speakGreetingThenListen]);
 
   const toggleListening = () => {
     cancelCountdown();
