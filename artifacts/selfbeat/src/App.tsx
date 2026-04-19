@@ -29,12 +29,13 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useAppAuth();
   const [location, setLocation] = useLocation();
 
-  if (!isLoaded) return null;
+  const needsRedirect = isLoaded && !isSignedIn && PROTECTED_PATHS.some((p) => location.startsWith(p));
 
-  if (!isSignedIn && PROTECTED_PATHS.some((p) => location.startsWith(p))) {
-    setLocation("/sign-in");
-    return null;
-  }
+  useEffect(() => {
+    if (needsRedirect) setLocation("/sign-in");
+  }, [needsRedirect, setLocation]);
+
+  if (!isLoaded || needsRedirect) return null;
 
   return <>{children}</>;
 }
