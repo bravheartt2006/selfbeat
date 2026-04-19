@@ -2,10 +2,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ToastAction } from "@/components/ui/toast";
 import { ArrowRight, AlertCircle, Mic, MicOff, X } from "lucide-react";
 import { SelfbeatLogo } from "@/components/SelfbeatLogo";
 import { useLanguage } from "@/lib/language-context";
 import { useAppAuth } from "@/lib/auth-context";
+import { useCredits } from "@/lib/credits-context";
+import { useToast } from "@/hooks/use-toast";
 import { pickVoice, waitForVoices } from "@/lib/voices";
 
 type SR = typeof SpeechRecognition;
@@ -22,6 +25,8 @@ function getSR(): SR | null {
 export default function Home() {
   const { t, speechLang } = useLanguage();
   const { isSignedIn } = useAppAuth();
+  const { credits, isUnlimited } = useCredits();
+  const { toast } = useToast();
   const [query, setQuery] = useState("");
   const [, setLocation] = useLocation();
   const [isListening, setIsListening] = useState(false);
@@ -281,6 +286,19 @@ export default function Home() {
     if (!isSignedIn) {
       setLocation(`/sign-in`);
       return;
+    }
+    if (!isUnlimited && credits <= 5) {
+      const qty = credits;
+      toast({
+        title: "Running low on credits",
+        description: `You have ${qty} question${qty === 1 ? "" : "s"} left — grab 25 more for just $4.99`,
+        duration: 8000,
+        action: (
+          <ToastAction altText="Get more credits" onClick={() => setLocation("/pricing")}>
+            Get more
+          </ToastAction>
+        ),
+      });
     }
     setLocation(`/stream?q=${encodeURIComponent(q)}`);
   };
