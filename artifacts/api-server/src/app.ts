@@ -55,10 +55,7 @@ app.use(express.urlencoded({ extended: true }));
 // Session middleware (PostgreSQL-backed)
 app.use(
   session({
-    store: new PgStore({
-      pool,
-      createTableIfMissing: true,
-    }),
+    store: new PgStore({ pool }),
     secret: process.env.SESSION_SECRET || "selfbeat-dev-secret-change-in-prod",
     resave: false,
     saveUninitialized: false,
