@@ -21,6 +21,7 @@ export default function Navbar() {
   const navItems = [
     { href: "/",            label: t("navHome") },
     { href: "/leaderboard", label: t("navLeaderboard") },
+    { href: "/blog",        label: "Blog" },
     { href: "/about",       label: t("navAbout") },
     { href: "/pricing",     label: t("navPricing") ?? "Pricing" },
   ];
@@ -43,7 +44,9 @@ export default function Navbar() {
                 key={item.href}
                 href={item.href}
                 className={`text-sm font-medium transition-colors hover:text-primary ${
-                  location === item.href ? "text-primary" : "text-muted-foreground"
+                  (item.href === "/" ? location === "/" : location.startsWith(item.href))
+                    ? "text-primary"
+                    : "text-muted-foreground"
                 }`}
               >
                 {item.label}

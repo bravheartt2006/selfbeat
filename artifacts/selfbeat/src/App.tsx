@@ -13,6 +13,8 @@ import LanguageSelect from "@/pages/language-select";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import PricingPage from "@/pages/pricing";
+import BlogPage from "@/pages/blog";
+import BlogPostPage from "@/pages/blog-post";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { LanguageProvider, useLanguage } from "@/lib/language-context";
@@ -41,6 +43,8 @@ function Router() {
               <Route path="/leaderboard" component={Leaderboard} />
               <Route path="/about" component={About} />
               <Route path="/pricing" component={PricingPage} />
+              <Route path="/blog" component={BlogPage} />
+              <Route path="/blog/:slug" component={BlogPostPage} />
               <Route path="/sign-in" component={SignInPage} />
               <Route path="/sign-in/sso-callback" component={SignInPage} />
               <Route path="/sign-up" component={SignUpPage} />
