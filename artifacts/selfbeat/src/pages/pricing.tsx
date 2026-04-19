@@ -205,7 +205,7 @@ export default function PricingPage() {
           <div>
             <p className="font-semibold text-foreground">Free Tier — always free</p>
             <p className="text-sm text-muted-foreground mt-0.5">
-              10 credits on signup. No credit card needed. Google Sign-In only. Credits let you run 10 full AI comparisons to get started.
+              25 credits on signup. No credit card needed. Google Sign-In only. Credits let you run 25 full AI comparisons to get started.
             </p>
           </div>
         </div>
