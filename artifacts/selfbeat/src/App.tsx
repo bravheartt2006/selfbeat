@@ -1,6 +1,6 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ClerkProvider } from "@clerk/react";
+import { ClerkProvider, useAuth, AuthenticateWithRedirectCallback } from "@clerk/react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
@@ -11,7 +11,6 @@ import Leaderboard from "@/pages/leaderboard";
 import About from "@/pages/about";
 import LanguageSelect from "@/pages/language-select";
 import SignInPage from "@/pages/sign-in";
-import SignUpPage from "@/pages/sign-up";
 import PricingPage from "@/pages/pricing";
 import BlogPage from "@/pages/blog";
 import BlogPostPage from "@/pages/blog-post";
@@ -25,6 +24,23 @@ const queryClient = new QueryClient();
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+// Pages that require authentication to access
+const PROTECTED_PATHS = ["/stream", "/results"];
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { isSignedIn, isLoaded } = useAuth();
+  const [location, setLocation] = useLocation();
+
+  if (!isLoaded) return null;
+
+  if (!isSignedIn && PROTECTED_PATHS.some((p) => location.startsWith(p))) {
+    setLocation("/sign-in");
+    return null;
+  }
+
+  return <>{children}</>;
+}
+
 function Router() {
   const { hasChosen } = useLanguage();
 
@@ -36,21 +52,37 @@ function Router() {
         <>
           <Navbar />
           <main className="flex-1">
-            <Switch>
-              <Route path="/" component={Home} />
-              <Route path="/stream" component={StreamingResults} />
-              <Route path="/results/:id" component={Results} />
-              <Route path="/leaderboard" component={Leaderboard} />
-              <Route path="/about" component={About} />
-              <Route path="/pricing" component={PricingPage} />
-              <Route path="/blog" component={BlogPage} />
-              <Route path="/blog/:slug" component={BlogPostPage} />
-              <Route path="/sign-in" component={SignInPage} />
-              <Route path="/sign-in/sso-callback" component={SignInPage} />
-              <Route path="/sign-up" component={SignUpPage} />
-              <Route path="/sign-up/sso-callback" component={SignUpPage} />
-              <Route component={NotFound} />
-            </Switch>
+            <RequireAuth>
+              <Switch>
+                <Route path="/" component={Home} />
+                <Route path="/stream" component={StreamingResults} />
+                <Route path="/results/:id" component={Results} />
+                <Route path="/leaderboard" component={Leaderboard} />
+                <Route path="/about" component={About} />
+                <Route path="/pricing" component={PricingPage} />
+                <Route path="/blog" component={BlogPage} />
+                <Route path="/blog/:slug" component={BlogPostPage} />
+                <Route path="/sign-in" component={SignInPage} />
+                <Route path="/sign-in/sso-callback">
+                  {() => (
+                    <AuthenticateWithRedirectCallback
+                      afterSignInUrl={`${BASE}/`}
+                      afterSignUpUrl={`${BASE}/`}
+                    />
+                  )}
+                </Route>
+                <Route path="/sign-up" component={SignInPage} />
+                <Route path="/sign-up/sso-callback">
+                  {() => (
+                    <AuthenticateWithRedirectCallback
+                      afterSignInUrl={`${BASE}/`}
+                      afterSignUpUrl={`${BASE}/`}
+                    />
+                  )}
+                </Route>
+                <Route component={NotFound} />
+              </Switch>
+            </RequireAuth>
           </main>
           <Footer />
         </>
@@ -64,7 +96,7 @@ function App() {
     <ClerkProvider
       publishableKey={CLERK_PUBLISHABLE_KEY}
       signInUrl={`${BASE}/sign-in`}
-      signUpUrl={`${BASE}/sign-up`}
+      signUpUrl={`${BASE}/sign-in`}
       signInFallbackRedirectUrl={`${BASE}/`}
       signUpFallbackRedirectUrl={`${BASE}/`}
       clerkJSVariant="headless"

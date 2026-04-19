@@ -14,15 +14,24 @@ Primary web artifact: **Selfbeat** — a production React/Vite app where users s
 - **10 AI providers**: OpenAI (ChatGPT), Anthropic (Claude), Google (Gemini), OpenRouter (DeepSeek, Grok, Mistral, Llama, Perplexity, Cohere, Qwen)
 - **Quality features**: refusal detection (rose badge), generic/cached response detection (amber badge), GPT-4o-mini generates agreement/disagreement from actual answer content, winner determined by avg(accuracyScore, selfAwarenessScore)
 
-### Monetization
-- **Auth**: Clerk (Google + Apple Sign-In only — configured via Auth pane in workspace toolbar)
+### Monetization & Auth
+- **Auth**: Clerk (Google Sign-In only). Custom sign-in page at `/sign-in` uses `useSignIn().authenticateWithRedirect` with `strategy: "oauth_google"`. No email/password. `/sign-up` redirects to `/sign-in`. SSO callbacks at `/sign-in/sso-callback` and `/sign-up/sso-callback` handled by `AuthenticateWithRedirectCallback`.
+- **Route guards**: `RequireAuth` component in `App.tsx` redirects unauthenticated users trying to access `/stream` or `/results` to `/sign-in`.
 - **Credits**: 10 free on signup; 1 credit per comparison; tracked in `selfbeat_users` DB table
-- **Fingerprinting**: FingerprintJS (loaded in `CreditsProvider`) — device fingerprint stored in `selfbeat_fingerprints` table
+- **Anti-fraud**: FingerprintJS in `lib/fingerprint.ts` (separate module, not exported from credits-context). Device fingerprint stored in `selfbeat_fingerprints` table. On new user creation, if fingerprint was already used on a different account → `startingCredits = 0`, `deviceCreditBlocked: true` returned from POST `/api/users/me`; frontend shows toast warning.
+- **Login log**: `selfbeat_login_log` table — logs every sign-in with userId, fingerprintId, ipAddress, timestamp.
+- **Rate limiting**: `express-rate-limit` middleware — 10 req/min per user (userId or IPv6-safe IP). Applied on `/api/selfbeat/comparisons/stream` via `streamRateLimiter` and credit balance endpoint via `apiRateLimiter`.
 - **Smart blur**: When user has 0 credits, backend sends `limited: true` → frontend shows Round 1 + blurred Round 2 overlay with upgrade CTA
-- **Pricing page**: `/pricing` — 3 plans: 25 credits/$4.99 (one-time), Monthly unlimited/$9.99, Annual unlimited/$79
-- **Stripe**: Checkout via `/api/stripe/checkout`, portal via `/api/stripe/portal`, webhook at `/api/stripe/webhook` (before express.json!)
-- **User table**: `selfbeat_users` (id, email, credits, stripeCustomerId, stripeSubscriptionId, hasUnlimited, unlimitedUntil)
+- **Pricing page**: `/pricing` — 5 plans: Free, Starter ($4.99/25 credits), Pro Monthly ($14.99), Pro Annual ($99, gold), Team ($49/mo)
+- **Stripe**: Checkout via `/api/stripe/checkout`, portal via `/api/stripe/portal`, webhook at `/api/stripe/webhook` (must come before express.json!)
+- **User table**: `selfbeat_users` (id, email, displayName, pictureUrl, credits, stripeCustomerId, stripeSubscriptionId, hasUnlimited, unlimitedUntil, lastSignInAt)
 - **Fingerprint table**: `selfbeat_fingerprints` (fingerprintId, userId, seenAt)
+
+### Blog
+- Blog posts data: `artifacts/selfbeat/src/lib/blog-posts.ts` (4 posts, HTML content via `dangerouslySetInnerHTML`)
+- Blog list: `/blog` → `pages/blog.tsx`; Blog detail: `/blog/:slug` → `pages/blog-post.tsx`
+- Blog prose styles: `.blog-content` CSS class in `index.css` (h2, h3, p, ul, li, blockquote, strong, em)
+- "Blog" nav item added to Navbar between Leaderboard and About
 
 ## Stack
 

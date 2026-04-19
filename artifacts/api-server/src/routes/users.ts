@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { getAuth } from "@clerk/express";
+import { getAuth, clerkClient } from "@clerk/express";
 import { eq, sql } from "drizzle-orm";
-import { db, selfbeatUsersTable } from "@workspace/db";
+import { db, selfbeatUsersTable, selfbeatLoginLogTable } from "@workspace/db";
+import { apiRateLimiter } from "../middlewares/rateLimiter";
 
 const router = Router();
 
@@ -18,7 +19,26 @@ router.post("/me", requireAuth, async (req: any, res) => {
   const { userId } = req;
   const { email, fingerprint } = req.body as { email?: string; fingerprint?: string };
 
+  const ip =
+    (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    null;
+
   try {
+    // Fetch Clerk profile for display name and avatar
+    let displayName: string | null = null;
+    let pictureUrl: string | null = null;
+    try {
+      const clerkUser = await clerkClient().users.getUser(userId);
+      displayName =
+        [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
+        clerkUser.emailAddresses?.[0]?.emailAddress?.split("@")[0] ||
+        null;
+      pictureUrl = clerkUser.imageUrl || null;
+    } catch {
+      // non-fatal
+    }
+
     const existing = await db
       .select()
       .from(selfbeatUsersTable)
@@ -27,14 +47,44 @@ router.post("/me", requireAuth, async (req: any, res) => {
 
     if (existing.length > 0) {
       const user = existing[0];
+
+      // Update last sign-in and profile fields
+      await db
+        .update(selfbeatUsersTable)
+        .set({
+          lastSignInAt: new Date(),
+          ...(displayName && { displayName }),
+          ...(pictureUrl && { pictureUrl }),
+          ...(email && !user.email && { email }),
+        })
+        .where(eq(selfbeatUsersTable.id, userId));
+
+      // Track fingerprint for existing user (new device)
+      if (fingerprint) {
+        await db.execute(
+          sql`INSERT INTO selfbeat_fingerprints (fingerprint_id, user_id)
+              VALUES (${fingerprint}, ${userId})
+              ON CONFLICT (fingerprint_id, user_id) DO NOTHING`
+        );
+      }
+
+      // Log sign-in
+      await db.insert(selfbeatLoginLogTable).values({
+        userId,
+        fingerprintId: fingerprint ?? null,
+        ipAddress: ip,
+      }).catch(() => {});
+
       const isUnlimited =
         user.hasUnlimited &&
         (!user.unlimitedUntil || user.unlimitedUntil > new Date());
-      return res.json({ ...user, isUnlimited });
+      return res.json({ ...user, isUnlimited, deviceCreditBlocked: false });
     }
 
-    // New user — check if fingerprint already used credits on another account
+    // ── New user ──────────────────────────────────────────────────────────────
+    // Check if fingerprint already received credits on a different account
     let startingCredits = 10;
+    let deviceCreditBlocked = false;
     if (fingerprint) {
       const fingerprintUser = await db.execute(
         sql`SELECT credits, has_unlimited FROM selfbeat_users WHERE id != ${userId} AND id IN (
@@ -42,21 +92,21 @@ router.post("/me", requireAuth, async (req: any, res) => {
         ) ORDER BY created_at ASC LIMIT 1`
       );
       if (fingerprintUser.rows.length > 0) {
-        const row = fingerprintUser.rows[0] as any;
-        if (row.has_unlimited) {
-          startingCredits = 0;
-        } else {
-          startingCredits = Math.min(
-            Math.max(0, Number(row.credits ?? 0)),
-            10
-          );
-        }
+        startingCredits = 0;
+        deviceCreditBlocked = true;
       }
     }
 
     const [created] = await db
       .insert(selfbeatUsersTable)
-      .values({ id: userId, email: email || null, credits: startingCredits })
+      .values({
+        id: userId,
+        email: email || null,
+        displayName,
+        pictureUrl,
+        credits: startingCredits,
+        lastSignInAt: new Date(),
+      })
       .returning();
 
     // Track fingerprint
@@ -68,10 +118,17 @@ router.post("/me", requireAuth, async (req: any, res) => {
       );
     }
 
+    // Log sign-in
+    await db.insert(selfbeatLoginLogTable).values({
+      userId,
+      fingerprintId: fingerprint ?? null,
+      ipAddress: ip,
+    }).catch(() => {});
+
     const isUnlimited =
       created.hasUnlimited &&
       (!created.unlimitedUntil || created.unlimitedUntil > new Date());
-    return res.json({ ...created, isUnlimited });
+    return res.json({ ...created, isUnlimited, deviceCreditBlocked });
   } catch (err) {
     console.error("Error in /users/me:", err);
     return res.status(500).json({ error: "Internal server error" });
@@ -79,7 +136,7 @@ router.post("/me", requireAuth, async (req: any, res) => {
 });
 
 // Get current user's credit balance
-router.get("/me/credits", requireAuth, async (req: any, res) => {
+router.get("/me/credits", requireAuth, apiRateLimiter, async (req: any, res) => {
   const { userId } = req;
   try {
     const rows = await db

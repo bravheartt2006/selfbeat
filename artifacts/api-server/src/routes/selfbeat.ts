@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
+import { streamRateLimiter } from "../middlewares/rateLimiter";
 import {
   CreateSelfbeatComparisonBody,
   CreateSelfbeatComparisonResponse,
@@ -744,7 +745,7 @@ const buildVerdictStr = (
   `Key disagreements: ${verdictDetails.disagreementPoints.join(" ")} ` +
   `Overall winner: ${verdictDetails.overallWinner}. ${verdictDetails.explanation}`;
 
-router.post("/selfbeat/comparisons/stream", async (req, res) => {
+router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");

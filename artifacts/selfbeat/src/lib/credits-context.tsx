@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import { useAuth, useUser } from "@clerk/react";
+import { useToast } from "@/hooks/use-toast";
 
 type CreditsState = {
   credits: number;
@@ -20,6 +21,7 @@ const CreditsContext = createContext<CreditsState>({
 export function CreditsProvider({ children }: { children: ReactNode }) {
   const { isSignedIn, userId } = useAuth();
   const { user } = useUser();
+  const { toast } = useToast();
   const [credits, setCredits] = useState(0);
   const [isUnlimited, setIsUnlimited] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -30,10 +32,9 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const FingerprintJS = await import("@fingerprintjs/fingerprintjs");
-        const fp = await FingerprintJS.default.load();
-        const result = await fp.get();
-        if (!cancelled) setFingerprintId(result.visitorId);
+        const { getFingerprint } = await import("@/lib/fingerprint");
+        const id = await getFingerprint();
+        if (!cancelled) setFingerprintId(id);
       } catch {
         // silently ignore
       }
@@ -75,10 +76,18 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email, fingerprint: fingerprintId }),
     })
       .then((r) => r.json())
-      .then((data: { credits: number; isUnlimited: boolean }) => {
+      .then((data: { credits: number; isUnlimited: boolean; deviceCreditBlocked?: boolean }) => {
         setCredits(data.credits);
         setIsUnlimited(data.isUnlimited);
         setIsLoaded(true);
+        if (data.deviceCreditBlocked) {
+          toast({
+            title: "Free credits already used on this device",
+            description: "Subscribe to continue using Selfbeat.",
+            variant: "destructive",
+            duration: 8000,
+          });
+        }
       })
       .catch(() => {
         refresh();
@@ -98,12 +107,4 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
 
 export function useCredits() {
   return useContext(CreditsContext);
-}
-
-export function getFingerprint(): Promise<string> {
-  return import("@fingerprintjs/fingerprintjs").then(async (FingerprintJS) => {
-    const fp = await FingerprintJS.default.load();
-    const result = await fp.get();
-    return result.visitorId;
-  });
 }
