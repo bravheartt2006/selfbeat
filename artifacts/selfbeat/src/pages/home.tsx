@@ -30,10 +30,15 @@ export default function Home() {
   const [voiceError, setVoiceError] = useState("");
   const [countdown, setCountdown] = useState<number | null>(null);
 
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const transcriptRef = useRef("");
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const greetedRef = useRef(false);
+  const recordingIntentRef = useRef<"submit" | "cancel" | "natural">("natural");
+  const maxRecordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recordingSecondsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const exampleQuestions = [t("exQ1"), t("exQ2"), t("exQ3"), t("exQ4")];
 
@@ -64,12 +69,26 @@ export default function Home() {
     [setLocation]
   );
 
+  const clearRecordingTimers = useCallback(() => {
+    if (maxRecordingTimerRef.current) {
+      clearTimeout(maxRecordingTimerRef.current);
+      maxRecordingTimerRef.current = null;
+    }
+    if (recordingSecondsTimerRef.current) {
+      clearInterval(recordingSecondsTimerRef.current);
+      recordingSecondsTimerRef.current = null;
+    }
+    setRecordingSeconds(0);
+  }, []);
+
   const startListening = useCallback(() => {
     const SR = getSR();
     if (!SR) return;
 
     setVoiceError("");
     transcriptRef.current = "";
+    recordingIntentRef.current = "natural";
+    setRecordingSeconds(0);
 
     const recognition = new SR();
     recognition.continuous = false;
@@ -86,12 +105,28 @@ export default function Home() {
 
     recognition.onend = () => {
       setIsListening(false);
+      clearRecordingTimers();
+
+      const intent = recordingIntentRef.current;
+      recordingIntentRef.current = "natural";
       const q = transcriptRef.current.trim();
-      if (q) startCountdown(q);
+
+      if (intent === "cancel") {
+        setQuery("");
+        return;
+      }
+      if (q) {
+        if (intent === "submit") {
+          setLocation(`/stream?q=${encodeURIComponent(q)}`);
+        } else {
+          startCountdown(q);
+        }
+      }
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       setIsListening(false);
+      clearRecordingTimers();
       if (event.error !== "no-speech" && event.error !== "aborted") {
         setVoiceError("Microphone access was denied. Please allow it in your browser settings.");
       }
@@ -100,7 +135,18 @@ export default function Home() {
     recognitionRef.current = recognition;
     recognition.start();
     setIsListening(true);
-  }, [startCountdown, speechLang]);
+
+    // Auto-stop and submit after 60 seconds
+    maxRecordingTimerRef.current = setTimeout(() => {
+      recordingIntentRef.current = "submit";
+      recognition.stop();
+    }, 60000);
+
+    // Tick up the recording seconds counter for the UI
+    recordingSecondsTimerRef.current = setInterval(() => {
+      setRecordingSeconds((s) => s + 1);
+    }, 1000);
+  }, [startCountdown, speechLang, setLocation, clearRecordingTimers]);
 
   // cancelFirst=true when the user manually taps the mic (override current speech).
   // cancelFirst=false for auto-play: we queue while language-select is still speaking
@@ -200,11 +246,22 @@ export default function Home() {
     return () => clearTimeout(tid);
   }, [speakGreetingThenListen, startListening]);
 
+  const stopAndSubmit = useCallback(() => {
+    cancelCountdown();
+    recordingIntentRef.current = "submit";
+    recognitionRef.current?.stop();
+  }, [cancelCountdown]);
+
+  const cancelRecording = useCallback(() => {
+    cancelCountdown();
+    recordingIntentRef.current = "cancel";
+    recognitionRef.current?.stop();
+  }, [cancelCountdown]);
+
   const toggleListening = () => {
     cancelCountdown();
     if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
+      stopAndSubmit();
       return;
     }
     speakGreetingThenListen(true); // user tapped — cancel current speech and replay
@@ -278,7 +335,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={toggleListening}
-                aria-label={isListening ? "Stop recording" : "Play greeting and start voice input"}
+                aria-label={isListening ? "Stop recording and submit" : "Play greeting and start voice input"}
                 aria-pressed={isListening}
                 className={`
                   shrink-0 h-12 w-12 rounded-xl flex items-center justify-center border transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none
@@ -318,9 +375,33 @@ export default function Home() {
           )}
 
           {statusPhase === "listening" && (
-            <p className="text-sm text-red-400 font-medium animate-pulse">
-              {t("listeningStatus")}
-            </p>
+            <div className="flex items-center gap-3 flex-wrap justify-center">
+              <span className="relative flex h-3 w-3 shrink-0" aria-hidden="true">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+              </span>
+              <p className="text-sm text-red-400 font-medium">
+                {t("listeningStatus")} · {60 - recordingSeconds}s
+              </p>
+              <button
+                type="button"
+                onClick={stopAndSubmit}
+                className="flex items-center gap-1.5 text-sm text-white bg-red-500 hover:bg-red-600 px-3 py-1 rounded-md transition-colors font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label="Stop recording and submit question"
+              >
+                <span className="h-2.5 w-2.5 rounded-sm bg-white inline-block shrink-0" aria-hidden="true" />
+                Stop
+              </button>
+              <button
+                type="button"
+                onClick={cancelRecording}
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+                aria-label="Cancel recording without submitting"
+              >
+                <X className="h-3.5 w-3.5" />
+                {t("cancel")}
+              </button>
+            </div>
           )}
 
           {statusPhase === "countdown" && countdown !== null && (
