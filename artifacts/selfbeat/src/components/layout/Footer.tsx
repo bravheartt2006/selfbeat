@@ -51,12 +51,12 @@ function YouTubeIcon() {
 }
 
 const SOCIAL_LINKS = [
-  { href: "https://twitter.com/selfbeat_ai",     label: "X (Twitter)", icon: <XIcon /> },
-  { href: "https://reddit.com/r/selfbeat",        label: "Reddit",      icon: <RedditIcon /> },
-  { href: "https://linkedin.com/company/selfbeat",label: "LinkedIn",    icon: <LinkedInIcon /> },
-  { href: "https://instagram.com/selfbeat_ai",    label: "Instagram",   icon: <InstagramIcon /> },
-  { href: "https://tiktok.com/@selfbeat_ai",      label: "TikTok",      icon: <TikTokIcon /> },
-  { href: "https://youtube.com/@selfbeat_ai",     label: "YouTube",     icon: <YouTubeIcon /> },
+  { href: "https://twitter.com/selfbeatai",                                    label: "X (Twitter)", icon: <XIcon /> },
+  { href: "https://www.reddit.com/user/selfbeat_ai",                           label: "Reddit",      icon: <RedditIcon /> },
+  { href: "https://www.linkedin.com/in/selfbeat-ai-5b5676404/",                label: "LinkedIn",    icon: <LinkedInIcon /> },
+  { href: "https://www.instagram.com/selfbeatai",                              label: "Instagram",   icon: <InstagramIcon /> },
+  { href: "https://www.tiktok.com/@selfbeatai",                                label: "TikTok",      icon: <TikTokIcon /> },
+  { href: "https://www.youtube.com/channel/UCN-i6MOOBI840PofrkTJ7dg",         label: "YouTube",     icon: <YouTubeIcon /> },
 ];
 
 export default function Footer() {
