@@ -1,0 +1,44 @@
+Build a complete Sign In system for Selfbeat from scratch. Here is everything needed:
+
+SIGN IN PAGE:
+- Create a clean, dedicated sign in page at /signin that matches the existing website design
+- The page should have the Selfbeat logo, a welcome message, and a single "Sign in with Google" button
+- No email/password fields at all — Google Sign In is the only option
+- When the user clicks "Sign in with Google" a Google OAuth popup appears immediately
+- After successful sign in, redirect the user to the main app
+- If a user tries to access the app without signing in, redirect them to /signin automatically
+
+GOOGLE OAUTH SETUP:
+- Implement Google OAuth 2.0 authentication
+- Store the Google OAuth Client ID and Client Secret in environment variables called GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET
+- Store user session securely using server-side sessions
+- Save the following user info to the database after first sign in: Google ID, email, display name, profile picture, sign in date, device fingerprint, credit balance
+
+FREE CREDITS SYSTEM:
+- Give every new user exactly 10 free credits on first sign in
+- Each comparison or selfbeat analysis costs 1 credit
+- Store credits in the database tied to the user's Google account
+- Credits never expire
+
+ANTI-FRAUD SYSTEM:
+- Integrate FingerprintJS from the free CDN at https://fpjs.io to generate a unique device fingerprint for every visitor
+- Store the device fingerprint in the database on first sign in
+- Tie the 10 free credits to BOTH the Google account AND the device fingerprint
+- If the same device fingerprint tries to sign in with a different Google account, do not give additional free credits and show this message: "Free credits already used on this device. Subscribe to continue."
+- If a user signs in from a new device they have not used before, allow it but do not give additional free credits on that new device
+- Block incognito mode abuse — FingerprintJS works in incognito so fingerprinting still applies
+- Log all sign in attempts with timestamp, Google ID, device fingerprint, and IP address for monitoring
+
+AFTER CREDITS ARE EXHAUSTED:
+- Round 1 answers remain fully visible
+- Round 2 Selfbeat Analysis becomes blurred with a lock icon overlay
+- Show a subscribe prompt that says "Subscribe to see AIs judge themselves" with buttons for the $4.99 starter pack and $14.99 Pro Monthly plan
+- The leaderboard becomes locked with the same subscribe prompt
+- Partial verdict only is shown
+
+SECURITY:
+- Store all secrets in environment variables, never hardcode credentials
+- Use HTTPS only
+- Sanitize all user inputs
+- Protect all API routes so they require authentication
+- Add rate limiting to prevent API abuse — maximum 10 requests per minute per user
