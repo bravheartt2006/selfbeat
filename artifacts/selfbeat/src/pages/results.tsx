@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageSquareQuote, XCircle, Database, RotateCcw, Square, Mic, ExternalLink, ThumbsUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { pickVoice, waitForVoices } from "@/lib/voices";
+import { ShareModal } from "@/components/ShareModal";
 
 type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek" | "grok" | "mistral" | "llama" | "perplexity" | "cohere" | "qwen" | "copilot";
 
@@ -119,6 +120,10 @@ export default function Results() {
   const [readPhase, setReadPhase] = useState<ReadPhase>("idle");
   const [readingName, setReadingName] = useState<string>("");
   const [userWinner, setUserWinner] = useState<string | null>(null);
+
+  // Share modal state
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [cardShare, setCardShare] = useState<{ heading: string; shareText: string; copyText: string } | null>(null);
 
   const activeReadRef = useRef(false);
   const stopRecogRef = useRef<SpeechRecognition | null>(null);
@@ -414,10 +419,8 @@ export default function Results() {
     toast({ title: t("copied"), description: t("copiedDesc"), duration: 2000 });
   };
 
-  const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
-    toast({ title: t("linkCopied"), description: t("linkCopiedDesc"), duration: 2000 });
-  };
+  const SHARE_URL = "https://selfbeat.ai";
+  const resultsShareText = `I just made AIs judge themselves on Selfbeat and the results were wild! See which AI won 👀 Try it free at selfbeat.ai`;
 
   const sortedResponses = [...result.responses].sort((a, b) => b.score - a.score);
   const winner = sortedResponses[0];
@@ -479,7 +482,7 @@ export default function Results() {
               {t("listen")}
             </Button>
           )}
-          <Button variant="outline" onClick={handleShare} className="group" aria-label="Copy link to share these results">
+          <Button variant="outline" onClick={() => setShareModalOpen(true)} className="group" aria-label="Share these results">
             <Share2 className="mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" aria-hidden="true" />
             {t("shareResults")}
           </Button>
@@ -804,11 +807,15 @@ export default function Results() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleCopy(`Prompt: ${result.question}\n\n${res.displayName || meta.name} Answer:\n${res.answer}\n\nSelf-Critique:\n${res.selfCriticism}`)}
+                    onClick={() => setCardShare({
+                      heading: `Share ${res.displayName || meta.name}'s Answer`,
+                      shareText: `I just saw this AI answer on Selfbeat — and then judge itself! Try it free at selfbeat.ai`,
+                      copyText: `${res.displayName || meta.name} on Selfbeat:\n\n${res.answer}\n\nSelf-critique:\n${res.selfCriticism}\n\nTry it free: ${SHARE_URL}`,
+                    })}
                     className="text-xs text-muted-foreground hover:text-foreground"
                   >
-                    <Copy className="h-3 w-3 mr-2" />
-                    {t("copyText")}
+                    <Share2 className="h-3 w-3 mr-2" />
+                    Share
                   </Button>
                 </div>
               </CardFooter>
@@ -816,6 +823,24 @@ export default function Results() {
           );
         })}
       </div>
+
+      <ShareModal
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        shareText={resultsShareText}
+        copyText={`${resultsShareText}\n\n${SHARE_URL}`}
+        heading="Share Results"
+      />
+
+      {cardShare && (
+        <ShareModal
+          isOpen={true}
+          onClose={() => setCardShare(null)}
+          shareText={cardShare.shareText}
+          copyText={cardShare.copyText}
+          heading={cardShare.heading}
+        />
+      )}
     </div>
   );
 }
