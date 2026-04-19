@@ -1,10 +1,27 @@
 import { Link, useParams } from "wouter";
 import { getPost } from "@/lib/blog-posts";
+import { useSEO } from "@/hooks/use-seo";
 import { CalendarDays, ArrowLeft, User } from "lucide-react";
 
 export default function BlogPostPage() {
   const { slug } = useParams<{ slug: string }>();
   const post = getPost(slug);
+
+  useSEO(
+    post
+      ? {
+          title: post.title,
+          description: post.metaDescription,
+          url: `https://selfbeat.ai/blog/${post.slug}`,
+          type: "article",
+        }
+      : {
+          title: "Post Not Found",
+          description: "This article does not exist or may have been removed.",
+          url: "https://selfbeat.ai/blog",
+          type: "website",
+        }
+  );
 
   if (!post) {
     return (

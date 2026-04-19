@@ -3,6 +3,7 @@ export type BlogPost = {
   title: string;
   date: string;
   excerpt: string;
+  metaDescription: string;
   content: string;
 };
 
@@ -16,6 +17,8 @@ export const BLOG_POSTS: BlogPost[] = [
     date: "April 10, 2026",
     excerpt:
       "We built Selfbeat because we kept noticing something: AI models sound confident even when they are wrong. What happens when you force them to evaluate their own answers?",
+    metaDescription:
+      "We built Selfbeat to find out what happens when AI models are forced to evaluate their own answers. The results reveal something important.",
     content: `
       <p>We built Selfbeat because we kept noticing something uncomfortable: AI models sound confident even when they are wrong. They do not hedge. They do not say "I am not sure." They give you an answer, and they give it with the same polished certainty whether they are correct or completely off base.</p>
 
@@ -50,6 +53,8 @@ export const BLOG_POSTS: BlogPost[] = [
     date: "April 14, 2026",
     excerpt:
       "Ask eleven AI models the same question and you will rarely get the same answer twice. Understanding why tells you something important about the limits of every AI tool you use.",
+    metaDescription:
+      "Ask eleven AI models the same question and they rarely agree. Understanding why reveals the real limits of every AI tool you rely on.",
     content: `
       <p>Ask eleven AI models the same question and you will rarely get the same answer twice. Sometimes the differences are minor — a word choice, a level of detail. Sometimes they are fundamental: different facts, different recommendations, even different conclusions about what the question is asking.</p>
 
@@ -85,6 +90,8 @@ export const BLOG_POSTS: BlogPost[] = [
     date: "April 17, 2026",
     excerpt:
       "AI models give medical advice with startling confidence. As a physician, I find that gap between confidence and correctness one of the most important problems in technology today.",
+    metaDescription:
+      "AI models give medical advice with startling confidence. As a physician, I explain why the gap between confidence and correctness is so dangerous.",
     content: `
       <p>I am a physician. I have spent years learning how to communicate uncertainty to patients — how to say "the evidence suggests" instead of "you definitely have" and "we should consider" instead of "you must." That vocabulary of calibrated uncertainty is a core clinical skill. It protects patients from overconfident recommendations.</p>
 
@@ -119,6 +126,8 @@ export const BLOG_POSTS: BlogPost[] = [
     date: "April 19, 2026",
     excerpt:
       "Every Selfbeat comparison ends with a leaderboard and a score for each model. Here is exactly what those numbers mean and how we calculate them.",
+    metaDescription:
+      "Every Selfbeat comparison ends with scores and a verdict. Here is exactly what those numbers mean and how accuracy and self-awareness are measured.",
     content: `
       <p>Every Selfbeat comparison ends with a ranked leaderboard. Each model gets a score out of ten, and the final verdict names an overall winner. A lot of work goes into producing those numbers. Here is exactly what they mean.</p>
 
