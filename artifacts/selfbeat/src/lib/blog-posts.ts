@@ -89,9 +89,9 @@ export const BLOG_POSTS: BlogPost[] = [
     title: "The Medical AI Problem: Why Confidence Is Not the Same as Correctness",
     date: "April 17, 2026",
     excerpt:
-      "AI models give medical advice with startling confidence. As a physician, I find that gap between confidence and correctness one of the most important problems in technology today.",
+      "AI models give medical advice with startling confidence. I find that gap between confidence and correctness one of the most important problems in technology today.",
     metaDescription:
-      "AI models give medical advice with startling confidence. As a physician, I explain why the gap between confidence and correctness is so dangerous.",
+      "AI models give medical advice with startling confidence. I explain why the gap between confidence and correctness is so dangerous.",
     content: `
       <p>I am a physician. I have spent years learning how to communicate uncertainty to patients — how to say "the evidence suggests" instead of "you definitely have" and "we should consider" instead of "you must." That vocabulary of calibrated uncertainty is a core clinical skill. It protects patients from overconfident recommendations.</p>
 
