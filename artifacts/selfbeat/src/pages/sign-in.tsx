@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { useSignIn, useAuth } from "@clerk/react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { SelfbeatLogo } from "@/components/SelfbeatLogo";
 import { useLanguage } from "@/lib/language-context";
+import { useAppAuth } from "@/lib/auth-context";
 
 function GoogleIcon() {
   return (
@@ -16,34 +16,54 @@ function GoogleIcon() {
 }
 
 export default function SignInPage() {
-  const { signIn, isLoaded } = useSignIn();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn } = useAppAuth();
   const [, setLocation] = useLocation();
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  // Read error from URL params (set by failed OAuth callback)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error")) {
+      setError("Sign in failed. Please try again.");
+    }
+  }, []);
 
-  if (isSignedIn) {
-    setLocation("/");
-    return null;
-  }
+  // Already signed in — go home
+  useEffect(() => {
+    if (isSignedIn) setLocation("/");
+  }, [isSignedIn, setLocation]);
 
-  const handleGoogleSignIn = async () => {
-    if (!isLoaded || loading) return;
+  const handleGoogleSignIn = () => {
+    if (loading) return;
     setLoading(true);
     setError(null);
-    try {
-      await signIn.authenticateWithRedirect({
-        strategy: "oauth_google",
-        redirectUrl: `${base}/sign-in/sso-callback`,
-        redirectUrlComplete: `${base}/`,
-      });
-    } catch (err: any) {
-      setError(err?.errors?.[0]?.longMessage ?? "Sign in failed. Please try again.");
-      setLoading(false);
+
+    const width = 500;
+    const height = 620;
+    const left = Math.max(0, (window.screen.width - width) / 2);
+    const top = Math.max(0, (window.screen.height - height) / 2);
+
+    const popup = window.open(
+      "/api/auth/google",
+      "google-signin",
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+    );
+
+    if (!popup) {
+      // Pop-up was blocked — fall back to redirect
+      window.location.href = "/api/auth/google";
+      return;
     }
+
+    // Poll for the popup to close (handles edge cases like user closing manually)
+    const poll = setInterval(() => {
+      if (!popup || popup.closed) {
+        clearInterval(poll);
+        setLoading(false);
+      }
+    }, 500);
   };
 
   return (
@@ -70,7 +90,7 @@ export default function SignInPage() {
         {/* Google button */}
         <button
           onClick={handleGoogleSignIn}
-          disabled={!isLoaded || loading}
+          disabled={loading}
           className="w-full flex items-center justify-center gap-3 px-5 py-3 rounded-xl border border-border bg-card hover:bg-accent transition-all text-sm font-medium text-foreground shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {loading ? (
@@ -78,7 +98,7 @@ export default function SignInPage() {
           ) : (
             <GoogleIcon />
           )}
-          {loading ? "Redirecting to Google..." : "Continue with Google"}
+          {loading ? "Opening Google sign-in..." : "Continue with Google"}
         </button>
 
         {error && (

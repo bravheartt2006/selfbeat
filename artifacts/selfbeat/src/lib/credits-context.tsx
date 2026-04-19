@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
-import { useAuth, useUser } from "@clerk/react";
+import { useAppAuth } from "@/lib/auth-context";
 import { useToast } from "@/hooks/use-toast";
 
 type CreditsState = {
@@ -19,8 +19,7 @@ const CreditsContext = createContext<CreditsState>({
 });
 
 export function CreditsProvider({ children }: { children: ReactNode }) {
-  const { isSignedIn, userId } = useAuth();
-  const { user } = useUser();
+  const { isSignedIn, user, isLoaded: authLoaded } = useAppAuth();
   const { toast } = useToast();
   const [credits, setCredits] = useState(0);
   const [isUnlimited, setIsUnlimited] = useState(false);
@@ -50,7 +49,7 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      const res = await fetch("/api/users/me/credits");
+      const res = await fetch("/api/users/me/credits", { credentials: "include" });
       if (res.ok) {
         const data = await res.json() as { credits: number; isUnlimited: boolean };
         setCredits(data.credits);
@@ -63,23 +62,35 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
     }
   }, [isSignedIn]);
 
-  // Register user on sign-in (gives 10 free credits on first sign-in)
+  // Sync credits from auth user object on initial load
   useEffect(() => {
-    if (!isSignedIn || !userId) {
+    if (!authLoaded) return;
+    if (!isSignedIn || !user) {
+      setCredits(0);
+      setIsUnlimited(false);
       setIsLoaded(true);
       return;
     }
-    const email = user?.primaryEmailAddress?.emailAddress;
+    // Seed from user object immediately (avoids flicker)
+    setCredits(user.credits);
+    setIsUnlimited(user.isUnlimited);
+    setIsLoaded(true);
+  }, [authLoaded, isSignedIn, user]);
+
+  // After sign-in, register fingerprint for anti-fraud check
+  useEffect(() => {
+    if (!isSignedIn || !user?.id || !fingerprintId) return;
+
     fetch("/api/users/me", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, fingerprint: fingerprintId }),
+      body: JSON.stringify({ fingerprint: fingerprintId }),
     })
       .then((r) => r.json())
       .then((data: { credits: number; isUnlimited: boolean; deviceCreditBlocked?: boolean }) => {
         setCredits(data.credits);
         setIsUnlimited(data.isUnlimited);
-        setIsLoaded(true);
         if (data.deviceCreditBlocked) {
           toast({
             title: "Free credits already used on this device",
@@ -89,10 +100,8 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
           });
         }
       })
-      .catch(() => {
-        refresh();
-      });
-  }, [isSignedIn, userId, user, fingerprintId, refresh]);
+      .catch(() => { refresh(); });
+  }, [isSignedIn, user?.id, fingerprintId, refresh]);
 
   const deductCredit = useCallback(() => {
     setCredits((c) => Math.max(0, c - 1));

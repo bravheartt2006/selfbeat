@@ -1,6 +1,5 @@
 import { Router } from "express";
-import { getAuth } from "@clerk/express";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, selfbeatUsersTable } from "@workspace/db";
 import { requireAuth } from "./users";
 
@@ -28,7 +27,7 @@ router.post("/checkout", requireAuth, async (req: any, res) => {
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: user?.email || undefined,
-        metadata: { clerkUserId: userId },
+        metadata: { userId },
       });
       customerId = customer.id;
       await db
@@ -51,7 +50,7 @@ router.post("/checkout", requireAuth, async (req: any, res) => {
       mode,
       success_url: `${base}/selfbeat/pricing?success=1`,
       cancel_url: `${base}/selfbeat/pricing?canceled=1`,
-      metadata: { clerkUserId: userId },
+      metadata: { userId },
     });
 
     return res.json({ url: session.url });

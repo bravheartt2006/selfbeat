@@ -1,6 +1,5 @@
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ClerkProvider, useAuth, AuthenticateWithRedirectCallback } from "@clerk/react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
@@ -18,17 +17,16 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { LanguageProvider, useLanguage } from "@/lib/language-context";
 import { CreditsProvider } from "@/lib/credits-context";
+import { AuthProvider, useAppAuth } from "@/lib/auth-context";
 
 const queryClient = new QueryClient();
-
-const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-// Pages that require authentication to access
+// Pages that require authentication
 const PROTECTED_PATHS = ["/stream", "/results"];
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isSignedIn, isLoaded } = useAppAuth();
   const [location, setLocation] = useLocation();
 
   if (!isLoaded) return null;
@@ -63,23 +61,7 @@ function Router() {
                 <Route path="/blog" component={BlogPage} />
                 <Route path="/blog/:slug" component={BlogPostPage} />
                 <Route path="/sign-in" component={SignInPage} />
-                <Route path="/sign-in/sso-callback">
-                  {() => (
-                    <AuthenticateWithRedirectCallback
-                      afterSignInUrl={`${BASE}/`}
-                      afterSignUpUrl={`${BASE}/`}
-                    />
-                  )}
-                </Route>
                 <Route path="/sign-up" component={SignInPage} />
-                <Route path="/sign-up/sso-callback">
-                  {() => (
-                    <AuthenticateWithRedirectCallback
-                      afterSignInUrl={`${BASE}/`}
-                      afterSignUpUrl={`${BASE}/`}
-                    />
-                  )}
-                </Route>
                 <Route component={NotFound} />
               </Switch>
             </RequireAuth>
@@ -93,15 +75,7 @@ function Router() {
 
 function App() {
   return (
-    <ClerkProvider
-      publishableKey={CLERK_PUBLISHABLE_KEY}
-      signInUrl={`${BASE}/sign-in`}
-      signUpUrl={`${BASE}/sign-in`}
-      signInFallbackRedirectUrl={`${BASE}/`}
-      signUpFallbackRedirectUrl={`${BASE}/`}
-      clerkJSVariant="headless"
-      proxyUrl="/api/__clerk"
-    >
+    <AuthProvider>
       <CreditsProvider>
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
@@ -114,7 +88,7 @@ function App() {
           </TooltipProvider>
         </QueryClientProvider>
       </CreditsProvider>
-    </ClerkProvider>
+    </AuthProvider>
   );
 }
 

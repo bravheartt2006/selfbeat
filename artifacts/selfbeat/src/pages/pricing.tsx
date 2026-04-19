@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAuth } from "@clerk/react";
+import { useAppAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useCredits } from "@/lib/credits-context";
 import { useLocation } from "wouter";
@@ -109,7 +109,7 @@ const PLANS: Plan[] = [
 
 export default function PricingPage() {
   const { t } = useLanguage();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn } = useAppAuth();
   const { credits, isUnlimited } = useCredits();
   const [loading, setLoading] = useState<string | null>(null);
   const [, navigate] = useLocation();

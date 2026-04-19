@@ -3,7 +3,7 @@ import { useSearch, useLocation } from "wouter";
 import { saveResult } from "@/lib/store";
 import { useLanguage } from "@/lib/language-context";
 import { useCredits } from "@/lib/credits-context";
-import { useAuth } from "@clerk/react";
+import { useAppAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Share2, Trophy, MessageSquareQuote, XCircle, Database,
@@ -589,7 +589,7 @@ export default function StreamingResults() {
   const question = params.get("q") ?? "";
 
   const { t, lang } = useLanguage();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn } = useAppAuth();
   const { deductCredit } = useCredits();
   const [phase, setPhase] = useState<Phase>("connecting");
   const [cards, setCards] = useState<ModelCard[]>(initialCards);

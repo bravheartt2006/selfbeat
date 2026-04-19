@@ -4,15 +4,14 @@ import { Globe, Check, Coins, LogOut, ChevronDown } from "lucide-react";
 import { SelfbeatLogo } from "@/components/SelfbeatLogo";
 import { useLanguage } from "@/lib/language-context";
 import { useCredits } from "@/lib/credits-context";
-import { useAuth, useUser } from "@clerk/react";
+import { useAppAuth } from "@/lib/auth-context";
 import { LANGUAGES } from "@/lib/i18n";
 
 export default function Navbar() {
   const [location] = useLocation();
   const { t, lang, setLang } = useLanguage();
   const { credits, isUnlimited, isLoaded } = useCredits();
-  const { isSignedIn, signOut } = useAuth();
-  const { user } = useUser();
+  const { isSignedIn, user, signOut } = useAppAuth();
   const [langOpen, setLangOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
 
@@ -27,6 +26,8 @@ export default function Navbar() {
   ];
 
   const currentLang = LANGUAGES.find((l) => l.code === lang)!;
+
+  const firstName = user?.displayName?.split(" ")[0] ?? null;
 
   return (
     <nav className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
@@ -127,19 +128,19 @@ export default function Navbar() {
                 className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-border/40 bg-card/50 hover:bg-card transition-all text-sm"
                 aria-expanded={userOpen}
               >
-                {user?.imageUrl ? (
+                {user?.pictureUrl ? (
                   <img
-                    src={user.imageUrl}
-                    alt={user.fullName ?? "User"}
+                    src={user.pictureUrl}
+                    alt={user.displayName ?? "User"}
                     className="h-6 w-6 rounded-full object-cover"
                   />
                 ) : (
                   <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
-                    {user?.firstName?.[0] ?? "?"}
+                    {firstName?.[0] ?? "?"}
                   </div>
                 )}
                 <span className="hidden sm:inline max-w-[100px] truncate text-muted-foreground">
-                  {user?.firstName ?? user?.primaryEmailAddress?.emailAddress?.split("@")[0] ?? ""}
+                  {firstName ?? user?.email?.split("@")[0] ?? ""}
                 </span>
                 <ChevronDown className="h-3 w-3 text-muted-foreground" />
               </button>
@@ -150,10 +151,10 @@ export default function Navbar() {
                   <div className="absolute right-0 top-full mt-2 z-50 min-w-[180px] rounded-xl border border-border/50 bg-popover shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
                     <div className="px-4 py-3 border-b border-border/40">
                       <p className="text-sm font-medium text-foreground truncate">
-                        {user?.fullName ?? user?.firstName ?? "User"}
+                        {user?.displayName ?? firstName ?? "User"}
                       </p>
                       <p className="text-xs text-muted-foreground truncate mt-0.5">
-                        {user?.primaryEmailAddress?.emailAddress}
+                        {user?.email}
                       </p>
                     </div>
                     <Link
@@ -165,7 +166,7 @@ export default function Navbar() {
                       {isUnlimited ? "Unlimited" : `${credits} credit${credits !== 1 ? "s" : ""}`}
                     </Link>
                     <button
-                      onClick={() => { signOut({ redirectUrl: `${base}/` }); setUserOpen(false); }}
+                      onClick={() => { signOut(); setUserOpen(false); }}
                       className="w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-accent transition-colors text-foreground text-left"
                     >
                       <LogOut className="h-4 w-4" />

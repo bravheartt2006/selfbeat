@@ -1,38 +1,36 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import session from "express-session";
 import pinoHttp from "pino-http";
-import { clerkMiddleware } from "@clerk/express";
-import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
+import PgSession from "connect-pg-simple";
+import { passport } from "./routes/auth";
 import { WebhookHandlers } from "./webhookHandlers";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { pool } from "@workspace/db";
+
+const PgStore = PgSession(session);
 
 const app: Express = express();
+
+// Trust the Replit proxy so that secure cookies work (req.secure = true)
+app.set("trust proxy", 1);
 
 app.use(
   pinoHttp({
     logger,
     serializers: {
       req(req) {
-        return {
-          id: req.id,
-          method: req.method,
-          url: req.url?.split("?")[0],
-        };
+        return { id: req.id, method: req.method, url: req.url?.split("?")[0] };
       },
       res(res) {
-        return {
-          statusCode: res.statusCode,
-        };
+        return { statusCode: res.statusCode };
       },
     },
-  }),
+  })
 );
 
-// Clerk proxy — must come before body parsers (streams raw bytes)
-app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
-
-// Stripe webhook — must come before express.json() so body stays as Buffer
+// Stripe webhook — must come before body parsers (streams raw bytes)
 app.post(
   "/api/stripe/webhook",
   express.raw({ type: "application/json" }),
@@ -54,7 +52,28 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(clerkMiddleware());
+// Session middleware (PostgreSQL-backed)
+app.use(
+  session({
+    store: new PgStore({
+      pool,
+      createTableIfMissing: true,
+    }),
+    secret: process.env.SESSION_SECRET || "selfbeat-dev-secret-change-in-prod",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    },
+  })
+);
+
+// Passport
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.use("/api", router);
 

@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
-import { getAuth } from "@clerk/express";
 import { streamRateLimiter } from "../middlewares/rateLimiter";
 import {
   CreateSelfbeatComparisonBody,
@@ -765,8 +764,8 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
   }
 
   // Credit check
-  const auth = getAuth(req);
-  const userId = auth?.userId || null;
+  const userId: string | null =
+    (req as any).session?.userId || (req.user as any)?.id || null;
   let isLimited = true;
   let creditDeducted = false;
 

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { ArrowRight, AlertCircle, Mic, MicOff, X } from "lucide-react";
 import { SelfbeatLogo } from "@/components/SelfbeatLogo";
 import { useLanguage } from "@/lib/language-context";
-import { useAuth } from "@clerk/react";
+import { useAppAuth } from "@/lib/auth-context";
 import { pickVoice, waitForVoices } from "@/lib/voices";
 
 type SR = typeof SpeechRecognition;
@@ -21,7 +21,7 @@ function getSR(): SR | null {
 
 export default function Home() {
   const { t, speechLang } = useLanguage();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn } = useAppAuth();
   const [query, setQuery] = useState("");
   const [, setLocation] = useLocation();
   const [isListening, setIsListening] = useState(false);
