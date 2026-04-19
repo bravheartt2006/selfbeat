@@ -54,13 +54,13 @@ passport.use(
           return done(null, { id: userId });
         }
 
-        // New user — 10 free credits
+        // New user — 25 free credits
         await db.insert(selfbeatUsersTable).values({
           id: userId,
           email,
           displayName,
           pictureUrl,
-          credits: 10,
+          credits: 25,
           lastSignInAt: new Date(),
         });
 
