@@ -93,7 +93,7 @@ export const BLOG_POSTS: BlogPost[] = [
     metaDescription:
       "AI models give medical advice with startling confidence. I explain why the gap between confidence and correctness is so dangerous.",
     content: `
-      <p>I am a physician. I have spent years learning how to communicate uncertainty to patients — how to say "the evidence suggests" instead of "you definitely have" and "we should consider" instead of "you must." That vocabulary of calibrated uncertainty is a core clinical skill. It protects patients from overconfident recommendations.</p>
+      <p>I have spent years learning how to communicate uncertainty to patients — how to say "the evidence suggests" instead of "you definitely have" and "we should consider" instead of "you must." That vocabulary of calibrated uncertainty is a core clinical skill. It protects patients from overconfident recommendations.</p>
 
       <p>AI models, by and large, have not learned this skill. They give medical answers with startling confidence. They do not say "I am not sure." They do not say "this is an area where the evidence is contested." They say: here is your answer.</p>
 
