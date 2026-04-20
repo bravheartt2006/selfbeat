@@ -1,0 +1,28 @@
+Rewrite the entire About page with this exact content. Replace everything currently on the page with the following text, keeping the existing page design and styling:
+
+TITLE:
+About Selfbeat
+
+TAGLINE:
+Founded with care and a commitment to honesty — built for people who want real answers from AI, not just confident ones. We believe the best way to test an AI is to make it answer for itself.
+
+SECTION 1 - The Problem:
+Standard AI benchmarks are sterile and easily gamed. When users ask questions, models often project absolute certainty, hiding their flaws, biases, and blind spots. There is no built-in mechanism for accountability or self-reflection in standard chat interfaces. You get an answer. You rarely get the truth.
+
+SECTION 2 - The Solution:
+Selfbeat forces models into a three-round crucible. First, they answer blindly. Second, they see their competitors' answers and must critique their own initial response. Third, a neutral arbiter calculates a final verdict based on accuracy and self-awareness. The result is a level of transparency no standard AI interface provides.
+
+SECTION 3 - Why We Built This:
+The best systems in the world — whether in science, law, or engineering — share one thing: built-in accountability. Peer review. Audits. Error analysis. AI has largely avoided this standard. Selfbeat changes that. We believe an AI that cannot admit its flaws is fundamentally unsafe — and fundamentally untrustworthy.
+
+SECTION 4 - The Three-Round System:
+Round 1: Blind
+All models receive the prompt simultaneously and generate their best initial response without seeing the others. No collaboration. No shortcuts.
+
+Round 2: Critique
+The veil is lifted. Each model reads the other answers, then writes an honest self-critique of its Round 1 performance. This is where character is revealed.
+
+Round 3: Verdict
+A meta-analysis calculates the final score — punishing stubbornness and rewarding intellectual honesty and the capacity for self-correction.
+
+Make sure the page is clean, readable, and matches the existing website design. Do not add any content that is not listed above.
