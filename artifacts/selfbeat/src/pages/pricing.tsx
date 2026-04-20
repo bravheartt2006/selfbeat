@@ -179,10 +179,10 @@ export default function PricingPage() {
       {/* Header */}
       <div className="text-center mb-4">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">
-          {t("pricing_title") ?? "Choose your plan"}
+          Choose your plan
         </h1>
         <p className="mt-3 text-muted-foreground max-w-xl mx-auto">
-          {t("pricing_subtitle") ?? "Watch 11 AI models answer, self-critique, and receive a final verdict. Start free — no credit card needed."}
+          Watch 11 AI models answer, self-critique, and receive a final verdict. Start free — no credit card needed.
         </p>
         {isSignedIn && !isUnlimited && (
           <p className="mt-2 text-sm font-medium text-muted-foreground">
