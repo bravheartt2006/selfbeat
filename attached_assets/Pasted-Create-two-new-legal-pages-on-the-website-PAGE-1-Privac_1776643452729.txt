@@ -1,0 +1,124 @@
+Create two new legal pages on the website:
+
+PAGE 1 - Privacy Policy at /privacy:
+Create a comprehensive Privacy Policy page that covers:
+
+1. Information We Collect:
+- Google account information (name, email, profile picture) collected via Google Sign In
+- Device fingerprint collected via FingerprintJS
+- Usage data (questions asked, credits used, subscription status)
+- Payment information processed by Stripe (we do not store card details)
+- IP address and browser information
+
+2. How We Use Your Information:
+- To provide and improve the Selfbeat service
+- To manage your account and credits
+- To process payments and subscriptions
+- To prevent fraud and abuse of free credits
+- To send service-related emails
+
+3. Data Storage and Security:
+- Data is stored securely on our servers
+- Payment data is handled entirely by Stripe and never stored on our servers
+- We use industry standard security measures
+
+4. Third Party Services:
+- Google OAuth for authentication
+- Stripe for payment processing
+- FingerprintJS for device identification
+
+5. Your Rights:
+- You can request deletion of your account and data at any time by emailing contact@selfbeat.ai
+- You can cancel your subscription at any time
+
+6. Cookies:
+- We use session cookies for authentication
+- We use FingerprintJS for device identification
+
+7. Contact:
+- For privacy related questions contact contact@selfbeat.ai
+
+8. Governing Law:
+- This policy is governed by the laws of British Columbia, Canada
+
+9. Changes to This Policy:
+- We may update this policy and will notify users of significant changes
+
+Company name: Selfbeat
+Contact email: contact@selfbeat.ai
+Website: selfbeat.ai
+Last updated: April 2026
+
+PAGE 2 - Terms of Service at /terms:
+Create comprehensive Terms of Service that covers:
+
+1. Acceptance of Terms:
+- By using Selfbeat you agree to these terms
+- You must be at least 13 years old to use Selfbeat
+
+2. Description of Service:
+- Selfbeat is an AI comparison and evaluation platform
+- We provide AI model comparisons where models evaluate their own answers
+- Results are for informational purposes only
+
+3. User Accounts:
+- You must sign in with Google to use Selfbeat
+- You are responsible for maintaining the security of your account
+- One account per person — creating multiple accounts to abuse free credits is prohibited
+
+4. Credits and Payments:
+- New users receive 25 free credits on signup
+- Each question consumes 1 credit
+- Purchased credits never expire
+- All payments are processed securely by Stripe
+- Starter pack: $4.99 for 25 credits (one-time)
+- Pro Monthly: $14.99 per month for unlimited comparisons
+- Pro Annual: $99 per year for unlimited comparisons
+- Team Plan: $49 per month for up to 5 team members
+
+5. Refund Policy:
+- Unused credits from one-time purchases are non-refundable
+- Monthly and annual subscriptions can be cancelled at any time
+- No partial refunds for unused subscription periods
+- Contact contact@selfbeat.ai for any billing issues
+
+6. Prohibited Uses:
+- Creating multiple accounts to abuse free credits
+- Using automated tools or bots to use the service
+- Reselling or redistributing Selfbeat content
+- Using the service for any illegal purpose
+
+7. Intellectual Property:
+- Selfbeat and its content are owned by Selfbeat
+- AI generated responses belong to their respective AI providers
+- Users may share results with attribution to selfbeat.ai
+
+8. Disclaimer:
+- Selfbeat is provided for informational purposes only
+- AI responses should not be relied upon for medical, legal, or financial decisions
+- We do not guarantee the accuracy of AI responses
+
+9. Limitation of Liability:
+- Selfbeat is not liable for any damages arising from use of the service
+- Our liability is limited to the amount paid in the last 30 days
+
+10. Governing Law:
+- These terms are governed by the laws of British Columbia, Canada
+- Any disputes will be resolved in the courts of British Columbia
+
+11. Contact:
+- For questions about these terms contact contact@selfbeat.ai
+
+12. Changes to Terms:
+- We may update these terms and will notify users of significant changes
+
+Company name: Selfbeat
+Contact email: contact@selfbeat.ai
+Website: selfbeat.ai
+Last updated: April 2026
+
+DESIGN FOR BOTH PAGES:
+- Match the existing website design and fonts
+- Clean, readable layout with clear section headings
+- Add both pages to the footer links
+- Make sure /privacy and /terms are accessible without being signed in

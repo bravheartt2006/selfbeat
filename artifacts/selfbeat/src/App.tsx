@@ -14,6 +14,8 @@ import SignInPage from "@/pages/sign-in";
 import PricingPage from "@/pages/pricing";
 import BlogPage from "@/pages/blog";
 import BlogPostPage from "@/pages/blog-post";
+import PrivacyPolicy from "@/pages/privacy";
+import TermsOfService from "@/pages/terms";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { LanguageProvider, useLanguage } from "@/lib/language-context";
@@ -62,6 +64,8 @@ function Router() {
                 <Route path="/pricing" component={PricingPage} />
                 <Route path="/blog" component={BlogPage} />
                 <Route path="/blog/:slug" component={BlogPostPage} />
+                <Route path="/privacy" component={PrivacyPolicy} />
+                <Route path="/terms" component={TermsOfService} />
                 <Route path="/sign-in" component={SignInPage} />
                 <Route path="/sign-up" component={SignInPage} />
                 <Route component={NotFound} />

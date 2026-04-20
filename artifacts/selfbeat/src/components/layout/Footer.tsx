@@ -103,13 +103,13 @@ export default function Footer() {
               {t("footerAbout")}
             </Link>
             <Link
-              href="/about"
+              href="/privacy"
               className="text-sm text-muted-foreground hover:text-primary transition-colors"
             >
               Privacy Policy
             </Link>
             <Link
-              href="/about"
+              href="/terms"
               className="text-sm text-muted-foreground hover:text-primary transition-colors"
             >
               Terms of Service
