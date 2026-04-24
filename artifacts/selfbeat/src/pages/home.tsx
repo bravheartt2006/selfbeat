@@ -9,7 +9,6 @@ import { useLanguage } from "@/lib/language-context";
 import { useAppAuth } from "@/lib/auth-context";
 import { useCredits } from "@/lib/credits-context";
 import { useToast } from "@/hooks/use-toast";
-import { pickVoice, waitForVoices } from "@/lib/voices";
 
 type SR = typeof SpeechRecognition;
 
@@ -30,7 +29,6 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [, setLocation] = useLocation();
   const [isListening, setIsListening] = useState(false);
-  const [isGreeting, setIsGreeting] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -40,7 +38,6 @@ export default function Home() {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const transcriptRef = useRef("");
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const greetedRef = useRef(false);
   const recordingIntentRef = useRef<"submit" | "cancel" | "natural">("natural");
   const maxRecordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recordingSecondsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -153,103 +150,10 @@ export default function Home() {
     }, 1000);
   }, [startCountdown, speechLang, setLocation, clearRecordingTimers]);
 
-  // cancelFirst=true when the user manually taps the mic (override current speech).
-  // cancelFirst=false for auto-play: we queue while language-select is still speaking
-  // so Chrome treats it as an allowed queued utterance.
-  const speakGreetingThenListen = useCallback((cancelFirst = false) => {
-    if (!window.speechSynthesis) {
-      startListening();
-      return;
-    }
-
-    const doSpeak = async () => {
-      // Wait for voices to be fully loaded before picking one
-      await waitForVoices(2500);
-
-      const utterance = new SpeechSynthesisUtterance(t("greeting"));
-      utterance.pitch = 1.15;
-      utterance.rate = 0.88;
-      utterance.volume = 0.95;
-      utterance.lang = speechLang;
-
-      const voice = pickVoice(speechLang);
-      if (voice) utterance.voice = voice;
-
-      setIsGreeting(true);
-
-      // Safety net: if onend never fires (Chrome TTS stall), open the mic anyway
-      const safetyTimer = setTimeout(() => {
-        setIsGreeting(false);
-        startListening();
-      }, 12000);
-
-      utterance.onend = () => {
-        clearTimeout(safetyTimer);
-        setIsGreeting(false);
-        startListening();
-      };
-
-      utterance.onerror = () => {
-        clearTimeout(safetyTimer);
-        setIsGreeting(false);
-        startListening();
-      };
-
-      if (cancelFirst) {
-        // User-triggered replay: cancel current speech, wait 80 ms, then speak.
-        // Chrome silently drops speak() called immediately after cancel().
-        window.speechSynthesis.cancel();
-        setTimeout(() => window.speechSynthesis.speak(utterance), 80);
-      } else {
-        // Auto-play: speak without cancelling so Chrome allows it as a queued
-        // utterance while the language-select greeting is still active.
-        window.speechSynthesis.speak(utterance);
-      }
-    };
-
-    void doSpeak();
-  }, [startListening, t, speechLang]);
-
   useEffect(() => {
     const SR = getSR();
     if (SR) setVoiceSupported(true);
   }, []);
-
-  // Auto-play greeting then open mic on first mount.
-  //
-  // Two paths:
-  //  A) User just picked a language — the language-select greeting started at
-  //     ~80 ms via fireGreeting(). We check at 150 ms so speech is active,
-  //     wait for it to finish, then open the mic. Chrome allows this because
-  //     the user's tap already unlocked TTS for the session.
-  //  B) User returned to home mid-session (Start Over, nav link, etc.) — no
-  //     active speech, so we try to queue our own greeting. Chrome permits
-  //     this because a recent button click provides user activation.
-  useEffect(() => {
-    if (greetedRef.current || !window.speechSynthesis) return;
-
-    const tid = setTimeout(() => {
-      if (greetedRef.current) return;
-      greetedRef.current = true;
-
-      if (window.speechSynthesis.speaking) {
-        // Path A: language-select greeting is playing — wait for it, then mic
-        setIsGreeting(true);
-        const poll = setInterval(() => {
-          if (!window.speechSynthesis.speaking) {
-            clearInterval(poll);
-            setIsGreeting(false);
-            startListening();
-          }
-        }, 100);
-      } else {
-        // Path B: no active speech — play our own greeting
-        speakGreetingThenListen(false);
-      }
-    }, 150);
-
-    return () => clearTimeout(tid);
-  }, [speakGreetingThenListen, startListening]);
 
   const stopAndSubmit = useCallback(() => {
     cancelCountdown();
@@ -269,7 +173,8 @@ export default function Home() {
       stopAndSubmit();
       return;
     }
-    speakGreetingThenListen(true); // user tapped — cancel current speech and replay
+    window.speechSynthesis?.cancel();
+    startListening();
   };
 
   const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -303,8 +208,8 @@ export default function Home() {
     setLocation(`/stream?q=${encodeURIComponent(q)}`);
   };
 
-  const statusPhase: "greeting" | "listening" | "countdown" | "idle" =
-    isGreeting ? "greeting" : isListening ? "listening" : countdown !== null ? "countdown" : "idle";
+  const statusPhase: "listening" | "countdown" | "idle" =
+    isListening ? "listening" : countdown !== null ? "countdown" : "idle";
 
   return (
     <main className="flex flex-col items-center justify-center min-h-[calc(100vh-16rem)] px-4 py-12">
@@ -353,13 +258,11 @@ export default function Home() {
               <button
                 type="button"
                 onClick={toggleListening}
-                aria-label={isListening ? "Stop recording and submit" : "Play greeting and start voice input"}
+                aria-label={isListening ? "Stop recording and submit" : "Start voice input"}
                 aria-pressed={isListening}
                 className={`
                   shrink-0 h-12 w-12 rounded-xl flex items-center justify-center border transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none
-                  ${isGreeting
-                    ? "bg-primary/20 border-primary/40 text-primary animate-pulse"
-                    : isListening
+                  ${isListening
                     ? "bg-red-500 border-red-400 text-white shadow-lg shadow-red-500/40 animate-pulse"
                     : countdown !== null
                     ? "bg-amber-500 border-amber-400 text-white"
@@ -386,9 +289,10 @@ export default function Home() {
         {/* Status area */}
         <div id="voice-status" aria-live="polite" aria-atomic="true" className="mt-3 min-h-[2rem] flex items-center justify-center">
 
-          {statusPhase === "greeting" && (
-            <p className="text-sm text-primary/80 font-medium animate-pulse">
-              {t("greetingStatus")}
+          {statusPhase === "idle" && voiceSupported && (
+            <p className="text-sm text-muted-foreground/60 flex items-center gap-1.5">
+              <Mic className="h-3.5 w-3.5" aria-hidden="true" />
+              Click to speak
             </p>
           )}
 
