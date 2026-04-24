@@ -970,8 +970,8 @@ export default function StreamingResults() {
               </p>
               <div className="flex flex-col gap-1 text-xs text-muted-foreground mb-6">
                 <span>Starter Credits: <strong className="text-foreground">$4.99</strong> for 25 comparisons</span>
-                <span>Pro Monthly: <strong className="text-foreground">$14.99/month</strong> unlimited</span>
-                <span>Pro Annual: <strong className="text-amber-500 font-bold">$99/year</strong> — Save 45% vs monthly</span>
+                <span>Pro Monthly: <strong className="text-foreground">$9.99/month</strong> unlimited</span>
+                <span>Pro Annual: <strong className="text-amber-500 font-bold">$79/year</strong> — Save 34% vs monthly</span>
               </div>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Button

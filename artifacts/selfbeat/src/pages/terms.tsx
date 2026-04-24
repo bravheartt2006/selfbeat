@@ -45,9 +45,9 @@ export default function TermsOfService() {
             <p>Purchased credits do not expire. The following paid plans are available:</p>
             <ul className="list-disc list-inside space-y-1.5 ml-2">
               <li><strong className="text-foreground">Starter Pack</strong> — $4.99 for 25 additional credits (one-time purchase)</li>
-              <li><strong className="text-foreground">Pro Monthly</strong> — $14.99 per month for unlimited comparisons</li>
-              <li><strong className="text-foreground">Pro Annual</strong> — $99 per year for unlimited comparisons</li>
-              <li><strong className="text-foreground">Team Plan</strong> — $49 per month for up to 5 team members with unlimited comparisons</li>
+              <li><strong className="text-foreground">Pro Monthly</strong> — $9.99 per month for unlimited comparisons</li>
+              <li><strong className="text-foreground">Pro Annual</strong> — $79 per year for unlimited comparisons</li>
+              <li><strong className="text-foreground">Team Plan</strong> — $39 per month for up to 5 team members with unlimited comparisons</li>
             </ul>
             <p>All payments are processed securely by Stripe. By completing a purchase you also agree to <a href="https://stripe.com/legal" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Stripe's Terms of Service</a>.</p>
           </div>

@@ -44,7 +44,7 @@ const PLANS: Plan[] = [
   {
     id: "pro_monthly",
     name: "Pro Monthly",
-    price: "$14.99",
+    price: "$9.99",
     period: "per month",
     description: "Unlimited comparisons",
     features: [
@@ -63,10 +63,10 @@ const PLANS: Plan[] = [
     id: "pro_annual",
     name: "Pro Annual",
     label: "Best Value",
-    price: "$99",
-    subprice: "$8.25 / month",
+    price: "$79",
+    subprice: "$6.58 / month",
     period: "per year",
-    description: "Save 45% vs monthly",
+    description: "Save 34% vs monthly",
     features: [
       "Everything in Pro Monthly",
       "Unlimited comparisons",
@@ -87,7 +87,7 @@ const PLANS: Plan[] = [
     id: "team",
     name: "Team Plan",
     label: "For Teams",
-    price: "$49",
+    price: "$39",
     period: "per month",
     description: "Perfect for research teams, newsrooms, law firms & medical schools",
     features: [
@@ -292,7 +292,7 @@ export default function PricingPage() {
                 )}
                 {plan.id === "pro_annual" && (
                   <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-400/10 border border-amber-400/20">
-                    <span className="text-[10px] font-bold text-amber-500">Save 45% vs monthly</span>
+                    <span className="text-[10px] font-bold text-amber-500">Save 34% vs monthly</span>
                   </div>
                 )}
               </div>
