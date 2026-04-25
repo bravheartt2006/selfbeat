@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ToastAction } from "@/components/ui/toast";
-import { ArrowRight, AlertCircle, Mic, MicOff, X } from "lucide-react";
+import { ArrowRight, Mic, MicOff, X } from "lucide-react";
 import { SelfbeatLogo } from "@/components/SelfbeatLogo";
 import { useLanguage } from "@/lib/language-context";
 import { useAppAuth } from "@/lib/auth-context";
@@ -42,7 +42,14 @@ export default function Home() {
   const maxRecordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recordingSecondsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const exampleQuestions = [t("exQ1"), t("exQ2"), t("exQ3"), t("exQ4")];
+  const exampleQuestions = [
+    "Which planet has the most moons and why do scientists keep changing the answer?",
+    "Is caffeine actually bad for you or is that a myth?",
+    "What really caused the 2008 financial crisis?",
+    "Is social media making us more or less connected?",
+    "Will AI ever be truly conscious?",
+    "What is the healthiest diet according to science?",
+  ];
 
   const cancelCountdown = useCallback(() => {
     if (countdownRef.current) {
@@ -370,25 +377,29 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Example questions */}
-      <section
-        className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-16 duration-700 delay-300"
-        aria-label="Example questions to try"
-      >
-        {exampleQuestions.map((q, i) => (
-          <button
-            key={i}
-            onClick={() => { cancelCountdown(); setQuery(q); }}
-            aria-label={q}
-            className="text-left p-4 rounded-xl border border-border/40 bg-card/30 hover:bg-card/80 hover:border-primary/30 transition-all text-sm text-muted-foreground hover:text-foreground group focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
-          >
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 mt-0.5 text-muted-foreground/50 group-hover:text-primary/70 transition-colors shrink-0" aria-hidden="true" />
-              <span>{q}</span>
-            </div>
-          </button>
-        ))}
-      </section>
+      {/* Example question suggestions — visible only when input is empty */}
+      {!query.trim() && (
+        <section
+          className="w-full max-w-4xl mx-auto animate-in fade-in duration-300"
+          aria-label="Example questions to try"
+        >
+          <p className="text-xs text-muted-foreground/50 text-center mb-3 uppercase tracking-widest font-medium">
+            Try asking
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {exampleQuestions.map((q, i) => (
+              <button
+                key={i}
+                onClick={() => { cancelCountdown(); setQuery(q); }}
+                aria-label={`Use example question: ${q}`}
+                className={`text-left p-3.5 rounded-xl border border-border/40 bg-card/40 hover:bg-card hover:border-primary/40 hover:shadow-sm transition-all duration-150 text-sm text-muted-foreground hover:text-foreground group focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none${i >= 3 ? " hidden sm:block" : ""}`}
+              >
+                <span className="line-clamp-2 leading-snug">{q}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Animated orbit decoration */}
       <div className="mt-24 relative w-64 h-64 opacity-50 pointer-events-none hidden md:block" aria-hidden="true">
