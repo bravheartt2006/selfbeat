@@ -23,3 +23,4 @@ export * from "./selfbeatComparisons";
 export * from "./selfbeatUsers";
 export * from "./selfbeatFingerprints";
 export * from "./selfbeatLoginLog";
+export * from "./selfbeatSettings";

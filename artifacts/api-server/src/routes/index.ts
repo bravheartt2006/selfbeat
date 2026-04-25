@@ -5,6 +5,7 @@ import usersRouter from "./users";
 import stripeRouter from "./stripe";
 import authRouter from "./auth";
 import trialRouter from "./trial";
+import statsRouter from "./stats";
 
 const router: IRouter = Router();
 
@@ -13,6 +14,7 @@ router.use(healthRouter);
 router.use("/users", usersRouter);
 router.use("/stripe", stripeRouter);
 router.use("/trial", trialRouter);
+router.use(statsRouter);
 router.use(selfbeatRouter);
 
 export default router;

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { ToastAction } from "@/components/ui/toast";
 import { ArrowRight, Mic, MicOff, X } from "lucide-react";
 import { SelfbeatLogo } from "@/components/SelfbeatLogo";
+import StatsBar from "@/components/StatsBar";
 import { useLanguage } from "@/lib/language-context";
 import { useAppAuth } from "@/lib/auth-context";
 import { useCredits } from "@/lib/credits-context";
@@ -409,8 +410,11 @@ export default function Home() {
         </section>
       )}
 
+      {/* Live usage stats */}
+      <StatsBar />
+
       {/* Animated orbit decoration */}
-      <div className="mt-24 relative w-64 h-64 opacity-50 pointer-events-none hidden md:block" aria-hidden="true">
+      <div className="mt-16 relative w-64 h-64 opacity-50 pointer-events-none hidden md:block" aria-hidden="true">
         <div className="absolute inset-0 border border-border/20 rounded-full animate-[spin_20s_linear_infinite]" />
         <div className="absolute inset-8 border border-border/30 rounded-full animate-[spin_15s_linear_infinite_reverse]" />
         <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#10A37F] shadow-[0_0_15px_#10A37F]" />
