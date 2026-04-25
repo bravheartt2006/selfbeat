@@ -17,6 +17,7 @@ import BlogPostPage from "@/pages/blog-post";
 import PrivacyPolicy from "@/pages/privacy";
 import TermsOfService from "@/pages/terms";
 import AdminQotd from "@/pages/admin-qotd";
+import AdminPage from "@/pages/admin";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import TrialBanner from "@/components/TrialBanner";
@@ -71,6 +72,7 @@ function Router() {
                 <Route path="/terms" component={TermsOfService} />
                 <Route path="/sign-in" component={SignInPage} />
                 <Route path="/sign-up" component={SignInPage} />
+                <Route path="/admin" component={AdminPage} />
                 <Route path="/admin/qotd" component={AdminQotd} />
                 <Route component={NotFound} />
               </Switch>
