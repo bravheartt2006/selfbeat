@@ -163,12 +163,18 @@ router.get("/me", (req, res) => {
     new Date(user.trialEndDate) <= now &&
     now.getTime() - new Date(user.trialEndDate).getTime() < 24 * 60 * 60 * 1000;
 
+  const isAdmin =
+    !!user.email &&
+    !!process.env.ADMIN_EMAIL &&
+    user.email === process.env.ADMIN_EMAIL;
+
   res.json({
     ...user,
     isUnlimited,
     isOnActiveTrial,
     trialEndDate,
     trialExpiredRecently,
+    isAdmin,
   });
 });
 

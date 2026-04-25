@@ -23,6 +23,8 @@ export type AppUser = {
   isOnActiveTrial: boolean;
   trialEndDate: string | null;
   trialExpiredRecently: boolean;
+  // Admin
+  isAdmin: boolean;
 };
 
 type AuthState = {

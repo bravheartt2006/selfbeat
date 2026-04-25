@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Globe, Check, Coins, LogOut, ChevronDown } from "lucide-react";
+import { Globe, Check, Coins, LogOut, ChevronDown, ShieldCheck } from "lucide-react";
 import { SelfbeatLogo } from "@/components/SelfbeatLogo";
 import { useLanguage } from "@/lib/language-context";
 import { useCredits } from "@/lib/credits-context";
@@ -150,13 +150,31 @@ export default function Navbar() {
                   <div className="fixed inset-0 z-40" onClick={() => setUserOpen(false)} />
                   <div className="absolute right-0 top-full mt-2 z-50 min-w-[180px] rounded-xl border border-border/50 bg-popover shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
                     <div className="px-4 py-3 border-b border-border/40">
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {user?.displayName ?? firstName ?? "User"}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {user?.displayName ?? firstName ?? "User"}
+                        </p>
+                        {user?.isAdmin && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 shrink-0">
+                            <ShieldCheck className="h-2.5 w-2.5" />
+                            Admin
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground truncate mt-0.5">
                         {user?.email}
                       </p>
                     </div>
+                    {user?.isAdmin && (
+                      <Link
+                        href="/admin"
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-accent transition-colors text-primary font-medium"
+                        onClick={() => setUserOpen(false)}
+                      >
+                        <ShieldCheck className="h-4 w-4" />
+                        Admin Panel
+                      </Link>
+                    )}
                     <Link
                       href="/pricing"
                       className="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-accent transition-colors text-foreground"
