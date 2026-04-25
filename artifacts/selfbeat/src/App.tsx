@@ -26,10 +26,19 @@ import Footer from "@/components/layout/Footer";
 import TrialBanner from "@/components/TrialBanner";
 import { LanguageProvider, useLanguage } from "@/lib/language-context";
 import { CreditsProvider } from "@/lib/credits-context";
-import { AuthProvider, useAppAuth } from "@/lib/auth-context";
+import { AuthProvider, useAppAuth, captureReferralCode } from "@/lib/auth-context";
 
 const queryClient = new QueryClient();
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+// Capture ?ref= from URL on first load
+(function captureRef() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    if (ref && ref.startsWith("SELF-")) captureReferralCode(ref);
+  } catch {}
+})()
 
 // Pages that require authentication
 const PROTECTED_PATHS = ["/stream", "/results"];

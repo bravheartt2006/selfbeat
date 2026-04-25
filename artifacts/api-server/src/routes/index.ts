@@ -10,6 +10,8 @@ import votesRouter from "./votes";
 import dailyQuestionRouter from "./dailyQuestion";
 import adminRouter from "./admin";
 import emailRouter from "./email";
+import referralRouter from "./referral";
+import giftsRouter from "./gifts";
 
 const router: IRouter = Router();
 
@@ -23,6 +25,8 @@ router.use(votesRouter);
 router.use(dailyQuestionRouter);
 router.use("/admin", adminRouter);
 router.use(emailRouter);
+router.use(referralRouter);
+router.use(giftsRouter);
 router.use(selfbeatRouter);
 
 export default router;

@@ -9,6 +9,7 @@ import {
   GetSelfbeatComparisonResponse,
 } from "@workspace/api-zod";
 import { db, selfbeatComparisonsTable, selfbeatUsersTable } from "@workspace/db";
+import { handleFirstQuestionReferral } from "./referral";
 
 const FREE_DEMO_QUESTIONS = new Set([
   "which planet has the most moons and why do scientists keep changing the answer",
@@ -1036,6 +1037,11 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
     try {
       await db.insert(selfbeatComparisonsTable).values({ id, questionKey, question, result: fullResult });
     } catch {}
+
+    // Trigger referral completion on first question (fire-and-forget)
+    if (userId && creditDeducted) {
+      handleFirstQuestionReferral(userId).catch(() => {});
+    }
 
     emit("done", { id });
     res.end();

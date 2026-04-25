@@ -22,6 +22,8 @@ export const selfbeatUsersTable = pgTable("selfbeat_users", {
   // ── Admin controls ────────────────────────────────────────────────────────
   isBanned: boolean("is_banned").notNull().default(false),
   planType: text("plan_type"), // 'monthly' | 'annual' | 'team' | null
+  // ── Referral ──────────────────────────────────────────────────────────────
+  referralCode: text("referral_code").unique(),
 });
 
 export type SelfbeatUser = typeof selfbeatUsersTable.$inferSelect;

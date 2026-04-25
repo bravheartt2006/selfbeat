@@ -4,6 +4,8 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { eq, sql } from "drizzle-orm";
 import { db, selfbeatUsersTable, selfbeatLoginLogTable } from "@workspace/db";
 import { pool } from "@workspace/db";
+import { generateReferralCode } from "./referral";
+import { applyPendingGifts } from "./gifts";
 
 const router = Router();
 
@@ -54,7 +56,8 @@ passport.use(
           return done(null, { id: userId });
         }
 
-        // New user — 25 free credits
+        // New user — 25 free credits + unique referral code
+        const referralCode = generateReferralCode();
         await db.insert(selfbeatUsersTable).values({
           id: userId,
           email,
@@ -62,9 +65,15 @@ passport.use(
           pictureUrl,
           credits: 25,
           lastSignInAt: new Date(),
+          referralCode,
         });
 
-        return done(null, { id: userId });
+        // Apply any pending gift credits sent to this email before signup
+        if (email) {
+          applyPendingGifts(userId, email).catch(() => {});
+        }
+
+        return done(null, { id: userId, isNewUser: true });
       } catch (err) {
         return done(err as Error);
       }

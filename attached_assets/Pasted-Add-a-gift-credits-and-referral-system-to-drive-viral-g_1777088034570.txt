@@ -1,0 +1,67 @@
+Add a gift credits and referral system to drive viral growth. Implement the following:
+
+REFERRAL SYSTEM:
+1. Generate a unique referral code for every user on signup
+2. Store referral code in database: users table add column referral_code
+3. Each referral code is a short unique string like "SELF-AB12CD"
+4. Create a referral link for each user: selfbeat.ai/?ref=SELF-AB12CD
+
+REFERRAL PAGE:
+5. Add a "Refer a Friend" section in user profile/settings page
+6. Show the user their unique referral link
+7. Add a one-click copy button to copy the referral link
+8. Add share buttons to share referral link via:
+   - X (Twitter): "I've been using Selfbeat to make AIs judge themselves — it's wild! Try it free: [referral link]"
+   - WhatsApp
+   - LinkedIn
+   - Copy link
+9. Show referral stats:
+   - "You have referred X friends"
+   - "You have earned X bonus credits from referrals"
+
+REFERRAL REWARDS:
+10. When a new user signs up using a referral link:
+    - Give the NEW user 5 extra bonus credits on top of their 25 free credits (30 total)
+    - Give the REFERRER 10 bonus credits for each successful referral
+    - A referral is only counted as successful after the new user asks their first question
+11. Show a welcome message to referred users:
+    "Welcome! You got 5 bonus credits thanks to your friend's referral. You have 30 credits to start!"
+12. Send an email to the referrer when someone uses their link:
+    Subject: "Someone just joined Selfbeat using your referral link! 🎉"
+    Message: "Great news! A friend joined using your referral link. We've added 10 bonus credits to your account. Keep sharing!"
+
+GIFT CREDITS:
+13. Add a "Gift Credits" feature where users can send credits to friends
+14. Add a "Gift Credits" button in the user profile
+15. User enters their friend's email address and selects amount to gift:
+    - 5 credits
+    - 10 credits
+    - 25 credits
+16. Credits are deducted from the sender's account immediately
+17. Friend receives an email:
+    Subject: "[Name] gifted you 10 Selfbeat credits! 🎁"
+    Message: "Your friend [Name] sent you 10 credits on Selfbeat. Sign in to claim them at selfbeat.ai"
+18. If the friend already has a Selfbeat account, credits are added immediately
+19. If the friend doesn't have a Selfbeat account yet:
+    - Store the pending gift in database
+    - When they sign up, automatically apply the gifted credits
+    - Send confirmation email to both sender and receiver
+
+CREDIT BUNDLES FOR GIFTING:
+20. Add a "Buy credits as a gift" option on the pricing page
+21. User pays for a credit bundle to gift to someone else
+22. Same flow as above but credits come from a fresh purchase not their own balance
+
+BACKEND:
+23. Create database table: referrals (id, referrer_id, referred_user_id, referral_code, completed, credits_awarded, created_at)
+24. Create database table: gifts (id, sender_id, receiver_email, receiver_id, credits, status, created_at)
+25. Create API endpoints:
+    - GET /api/referral — get current user referral code and stats
+    - POST /api/gifts — send gift credits
+    - GET /api/gifts/pending/:email — check pending gifts for an email
+26. Track referral code in URL when user visits selfbeat.ai/?ref=CODE
+27. Store referral code in session/cookie before signup
+28. Apply referral after successful Google Sign In
+
+29. Style everything to match the existing website design
+30. Make sure referral and gift features work correctly on mobile devices
