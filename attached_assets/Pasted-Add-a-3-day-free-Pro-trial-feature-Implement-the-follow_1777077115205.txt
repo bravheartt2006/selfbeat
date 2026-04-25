@@ -1,0 +1,51 @@
+Add a 3-day free Pro trial feature. Implement the following:
+
+TRIAL TRIGGER:
+1. When a user's credits run out and they hit the paywall, show a special offer:
+   "Try Pro free for 3 days — no credit card required"
+2. Each user can only claim the free trial once ever
+3. Store trial status in the database: trial_used, trial_start_date, trial_end_date
+
+TRIAL EXPERIENCE:
+4. During the 3 day trial the user gets full Pro access:
+   - Unlimited questions
+   - Full Round 2 Selfbeat Analysis (no blur)
+   - Full verdict
+   - Leaderboard access
+   - History saved
+5. Show a visible trial countdown banner at the top of the page:
+   "Pro Trial: 2 days and 14 hours remaining — Subscribe to keep access"
+   with a Subscribe button
+6. The banner should update in real time
+
+TRIAL EXPIRY:
+7. When trial expires, revert to free tier restrictions immediately
+8. Show a message: "Your free trial has ended. Subscribe to continue getting full access."
+9. Offer a special discount for users who let their trial expire:
+   "Welcome back offer: Get Pro Monthly for $7.99 your first month" 
+   for 24 hours only after trial ends
+
+TRIAL EMAIL SEQUENCE:
+10. Send an email when trial starts:
+    Subject: "Your Selfbeat Pro trial has started"
+    Message: "You have 3 days of unlimited access. Here is what you can do..."
+11. Send a reminder email 24 hours before trial ends:
+    Subject: "Your Selfbeat Pro trial ends tomorrow"
+    Message: "Don't lose your unlimited access. Subscribe today for $9.99/month"
+12. Send an email when trial ends:
+    Subject: "Your Selfbeat Pro trial has ended"
+    Message: "Subscribe now and get your first month for $7.99 — offer expires in 24 hours"
+
+STRIPE INTEGRATION:
+13. When user clicks Subscribe during or after trial, take them to Stripe checkout
+14. Apply the $7.99 first month discount automatically using a Stripe coupon if they subscribe within 24 hours of trial ending
+
+TRACKING:
+15. Track in the database:
+    - trial_used (boolean)
+    - trial_start_date
+    - trial_end_date
+    - converted_after_trial (boolean)
+
+16. Style everything to match the existing website design
+17. Make sure trial works correctly on mobile devices

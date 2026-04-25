@@ -12,6 +12,13 @@ export const selfbeatUsersTable = pgTable("selfbeat_users", {
   unlimitedUntil: timestamp("unlimited_until", { withTimezone: true }),
   lastSignInAt: timestamp("last_sign_in_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // ── Free trial ────────────────────────────────────────────────────────────
+  trialUsed: boolean("trial_used").notNull().default(false),
+  trialStartDate: timestamp("trial_start_date", { withTimezone: true }),
+  trialEndDate: timestamp("trial_end_date", { withTimezone: true }),
+  convertedAfterTrial: boolean("converted_after_trial").notNull().default(false),
+  trialReminderSent: boolean("trial_reminder_sent").notNull().default(false),
+  trialExpirySent: boolean("trial_expiry_sent").notNull().default(false),
 });
 
 export type SelfbeatUser = typeof selfbeatUsersTable.$inferSelect;

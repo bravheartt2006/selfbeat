@@ -32,10 +32,22 @@ async function checkAndDeductCredit(userId: string): Promise<boolean> {
 
   if (!user) return false;
 
+  const now = new Date();
+
   const hasUnlimited =
-    user.hasUnlimited && (!user.unlimitedUntil || user.unlimitedUntil > new Date());
+    user.hasUnlimited && (!user.unlimitedUntil || user.unlimitedUntil > now);
 
   if (hasUnlimited) return true;
+
+  // Active free trial counts as unlimited
+  const isOnActiveTrial =
+    user.trialUsed &&
+    user.trialStartDate !== null &&
+    user.trialEndDate !== null &&
+    user.trialEndDate > now;
+
+  if (isOnActiveTrial) return true;
+
   if (user.credits <= 0) return false;
 
   await db

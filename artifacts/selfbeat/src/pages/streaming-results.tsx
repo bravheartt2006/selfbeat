@@ -695,7 +695,8 @@ export default function StreamingResults() {
 
   const { t, lang } = useLanguage();
   const { isSignedIn } = useAppAuth();
-  const { deductCredit } = useCredits();
+  const { deductCredit, trialUsed, startTrial, refresh: refreshCredits } = useCredits();
+  const [isStartingTrial, setIsStartingTrial] = useState(false);
   const [phase, setPhase] = useState<Phase>("connecting");
   const [cards, setCards] = useState<ModelCard[]>(initialCards);
   const [verdict, setVerdict] = useState<VerdictPayload | null>(null);
@@ -1008,36 +1009,81 @@ export default function StreamingResults() {
           {/* Overlay */}
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/70 backdrop-blur-sm rounded-2xl">
             <div className="text-center max-w-md px-6 py-10">
-              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 border border-primary/20 mx-auto mb-4">
-                <Lock className="h-7 w-7 text-primary" />
-              </div>
-              <h2 className="text-xl font-bold text-foreground mb-2">
-                {t("upgrade_to_unlock") ?? "Subscribe to see AIs judge themselves"}
-              </h2>
-              <p className="text-sm text-muted-foreground mb-1 leading-relaxed">
-                {t("upgrade_description") ?? "You've used all your free comparisons. Upgrade to unlock Round 2 self-critiques, scores, and the final verdict."}
-              </p>
-              <div className="flex flex-col gap-1 text-xs text-muted-foreground mb-6">
-                <span>Starter Credits: <strong className="text-foreground">$4.99</strong> for 25 comparisons</span>
-                <span>Pro Monthly: <strong className="text-foreground">$9.99/month</strong> unlimited</span>
-                <span>Pro Annual: <strong className="text-amber-500 font-bold">$79/year</strong> — Save 34% vs monthly</span>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button
-                  onClick={() => setLocation("/pricing")}
-                  className="font-semibold bg-amber-400 hover:bg-amber-300 text-amber-950 border-0"
-                >
-                  {t("see_plans") ?? "See all plans"}
-                </Button>
-                {!isSignedIn && (
+              {/* ── Trial offer (signed in, never used trial) ── */}
+              {isSignedIn && !trialUsed ? (
+                <>
+                  <div className="flex items-center justify-center w-14 h-14 rounded-full bg-violet-500/10 border border-violet-500/30 mx-auto mb-4">
+                    <Zap className="h-7 w-7 text-violet-400" />
+                  </div>
+                  <h2 className="text-xl font-bold text-foreground mb-2">
+                    Try Pro free for 3 days
+                  </h2>
+                  <p className="text-sm text-muted-foreground mb-1 leading-relaxed">
+                    No credit card required. Get full Pro access instantly — unlimited questions, Round 2 self-critiques, scores, and the full verdict.
+                  </p>
+                  <ul className="text-xs text-muted-foreground mb-6 space-y-1 mt-3">
+                    <li>✓ Unlimited questions</li>
+                    <li>✓ Full Round 2 Selfbeat Analysis</li>
+                    <li>✓ Final verdict with scores</li>
+                    <li>✓ Leaderboard access</li>
+                  </ul>
                   <Button
-                    variant="outline"
-                    onClick={() => setLocation("/sign-in")}
+                    onClick={async () => {
+                      setIsStartingTrial(true);
+                      const ok = await startTrial();
+                      if (ok) {
+                        await refreshCredits();
+                        setIsLimited(false);
+                        setShowRound2(true);
+                      } else {
+                        toast({ title: "Couldn't start trial", description: "Please try again.", variant: "destructive" });
+                      }
+                      setIsStartingTrial(false);
+                    }}
+                    disabled={isStartingTrial}
+                    className="font-semibold bg-violet-600 hover:bg-violet-500 text-white border-0 w-full mb-3"
                   >
-                    {t("sign_in") ?? "Sign in"}
+                    {isStartingTrial ? "Starting trial..." : "Start free 3-day trial →"}
                   </Button>
-                )}
-              </div>
+                  <p className="text-xs text-muted-foreground">
+                    Or <button className="underline hover:text-foreground" onClick={() => setLocation("/pricing")}>subscribe now from $9.99/mo</button>
+                  </p>
+                </>
+              ) : (
+                /* ── Standard paywall ── */
+                <>
+                  <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 border border-primary/20 mx-auto mb-4">
+                    <Lock className="h-7 w-7 text-primary" />
+                  </div>
+                  <h2 className="text-xl font-bold text-foreground mb-2">
+                    {t("upgrade_to_unlock") ?? "Subscribe to see AIs judge themselves"}
+                  </h2>
+                  <p className="text-sm text-muted-foreground mb-1 leading-relaxed">
+                    {t("upgrade_description") ?? "You've used all your free comparisons. Upgrade to unlock Round 2 self-critiques, scores, and the final verdict."}
+                  </p>
+                  <div className="flex flex-col gap-1 text-xs text-muted-foreground mb-6">
+                    <span>Starter Credits: <strong className="text-foreground">$4.99</strong> for 25 comparisons</span>
+                    <span>Pro Monthly: <strong className="text-foreground">$9.99/month</strong> unlimited</span>
+                    <span>Pro Annual: <strong className="text-amber-500 font-bold">$79/year</strong> — Save 34% vs monthly</span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <Button
+                      onClick={() => setLocation("/pricing")}
+                      className="font-semibold bg-amber-400 hover:bg-amber-300 text-amber-950 border-0"
+                    >
+                      {t("see_plans") ?? "See all plans"}
+                    </Button>
+                    {!isSignedIn && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setLocation("/sign-in")}
+                      >
+                        {t("sign_in") ?? "Sign in"}
+                      </Button>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

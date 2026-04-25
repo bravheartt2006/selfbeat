@@ -18,6 +18,11 @@ export type AppUser = {
   hasUnlimited: boolean;
   unlimitedUntil: string | null;
   createdAt: string;
+  // Trial
+  trialUsed: boolean;
+  isOnActiveTrial: boolean;
+  trialEndDate: string | null;
+  trialExpiredRecently: boolean;
 };
 
 type AuthState = {

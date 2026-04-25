@@ -18,6 +18,7 @@ import PrivacyPolicy from "@/pages/privacy";
 import TermsOfService from "@/pages/terms";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import TrialBanner from "@/components/TrialBanner";
 import { LanguageProvider, useLanguage } from "@/lib/language-context";
 import { CreditsProvider } from "@/lib/credits-context";
 import { AuthProvider, useAppAuth } from "@/lib/auth-context";
@@ -53,6 +54,7 @@ function Router() {
       ) : (
         <>
           <Navbar />
+          <TrialBanner />
           <main className="flex-1">
             <RequireAuth>
               <Switch>

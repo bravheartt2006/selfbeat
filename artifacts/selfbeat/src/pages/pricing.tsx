@@ -110,7 +110,8 @@ const PLANS: Plan[] = [
 export default function PricingPage() {
   const { t } = useLanguage();
   const { isSignedIn } = useAppAuth();
-  const { credits, isUnlimited } = useCredits();
+  const { credits, isUnlimited, trialUsed, isOnActiveTrial, trialExpiredRecently, startTrial } = useCredits();
+  const [startingTrial, setStartingTrial] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -129,8 +130,12 @@ export default function PricingPage() {
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId: plan.priceId }),
+        body: JSON.stringify({
+          priceId: plan.priceId,
+          applyTrialDiscount: trialExpiredRecently && plan.id === "pro_monthly",
+        }),
       });
       const data = await res.json() as { url?: string; error?: string };
       if (data.url) {
@@ -195,6 +200,59 @@ export default function PricingPage() {
           </p>
         )}
       </div>
+
+      {/* ── Trial offer callout ───────────────────────────────────────────────── */}
+      {isSignedIn && !trialUsed && !isOnActiveTrial && !isUnlimited && (
+        <div className="mb-6 rounded-2xl border-2 border-violet-500/40 bg-violet-500/5 px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+          <div className="flex items-start gap-4">
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-violet-500/10 shrink-0 mt-0.5">
+              <Zap className="h-5 w-5 text-violet-400" />
+            </div>
+            <div>
+              <p className="font-semibold text-foreground">Try Pro free for 3 days — no credit card required</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Get full Pro access: unlimited questions, Round 2 self-critiques, scores, and the final verdict.
+              </p>
+            </div>
+          </div>
+          <Button
+            className="shrink-0 bg-violet-600 hover:bg-violet-500 text-white border-0"
+            disabled={startingTrial}
+            onClick={async () => {
+              setStartingTrial(true);
+              const ok = await startTrial();
+              if (ok) {
+                toast({ title: "Trial started!", description: "You have 3 days of full Pro access.", duration: 5000 });
+              } else {
+                toast({ title: "Couldn't start trial", variant: "destructive" });
+              }
+              setStartingTrial(false);
+            }}
+          >
+            {startingTrial ? "Starting..." : "Start free trial"}
+          </Button>
+        </div>
+      )}
+
+      {/* ── Trial active callout ─────────────────────────────────────────────── */}
+      {isOnActiveTrial && (
+        <div className="mb-6 rounded-2xl border border-violet-500/30 bg-violet-500/5 px-6 py-4 flex items-center gap-3">
+          <Zap className="h-4 w-4 text-violet-400 shrink-0" />
+          <p className="text-sm font-medium text-violet-300">
+            Your free Pro trial is active. Subscribe before it ends to keep unlimited access.
+          </p>
+        </div>
+      )}
+
+      {/* ── Post-trial welcome-back offer ────────────────────────────────────── */}
+      {trialExpiredRecently && (
+        <div className="mb-6 rounded-2xl border border-amber-500/40 bg-amber-500/5 px-6 py-4">
+          <p className="text-sm font-semibold text-amber-400 mb-1">Welcome back offer — expires in 24 hours</p>
+          <p className="text-sm text-muted-foreground">
+            Your free trial has ended. Subscribe now and get Pro Monthly for <strong className="text-foreground">$7.99 your first month</strong> — the discount is applied automatically at checkout.
+          </p>
+        </div>
+      )}
 
       {/* Free tier callout */}
       <div className="mb-10 rounded-2xl border border-border/50 bg-card/60 px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">

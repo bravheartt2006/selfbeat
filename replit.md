@@ -15,17 +15,20 @@ Primary web artifact: **Selfbeat** — a production React/Vite app where users s
 - **Quality features**: refusal detection (rose badge), generic/cached response detection (amber badge), GPT-4o-mini generates agreement/disagreement from actual answer content, winner determined by avg(accuracyScore, selfAwarenessScore)
 
 ### Monetization & Auth
-- **Auth**: Clerk (Google Sign-In only). Custom sign-in page at `/sign-in` uses `useSignIn().authenticateWithRedirect` with `strategy: "oauth_google"`. No email/password. `/sign-up` redirects to `/sign-in`. SSO callbacks at `/sign-in/sso-callback` and `/sign-up/sso-callback` handled by `AuthenticateWithRedirectCallback`.
+- **Auth**: Custom Google OAuth via Passport.js + express-session + PostgreSQL session store. Sign-in popup flow: `/api/auth/google` → `/api/auth/google/callback` → `/api/auth/success` (posts `selfbeat-auth-success` message, closes popup). No Clerk.
 - **Route guards**: `RequireAuth` component in `App.tsx` redirects unauthenticated users trying to access `/stream` or `/results` to `/sign-in`.
-- **Credits**: 10 free on signup; 1 credit per comparison; tracked in `selfbeat_users` DB table
-- **Anti-fraud**: FingerprintJS in `lib/fingerprint.ts` (separate module, not exported from credits-context). Device fingerprint stored in `selfbeat_fingerprints` table. On new user creation, if fingerprint was already used on a different account → `startingCredits = 0`, `deviceCreditBlocked: true` returned from POST `/api/users/me`; frontend shows toast warning.
-- **Login log**: `selfbeat_login_log` table — logs every sign-in with userId, fingerprintId, ipAddress, timestamp.
-- **Rate limiting**: `express-rate-limit` middleware — 10 req/min per user (userId or IPv6-safe IP). Applied on `/api/selfbeat/comparisons/stream` via `streamRateLimiter` and credit balance endpoint via `apiRateLimiter`.
-- **Smart blur**: When user has 0 credits, backend sends `limited: true` → frontend shows Round 1 + blurred Round 2 overlay with upgrade CTA
-- **Pricing page**: `/pricing` — 5 plans: Free, Starter ($4.99/25 credits), Pro Monthly ($14.99), Pro Annual ($99, gold), Team ($49/mo)
-- **Stripe**: Checkout via `/api/stripe/checkout`, portal via `/api/stripe/portal`, webhook at `/api/stripe/webhook` (must come before express.json!)
-- **User table**: `selfbeat_users` (id, email, displayName, pictureUrl, credits, stripeCustomerId, stripeSubscriptionId, hasUnlimited, unlimitedUntil, lastSignInAt)
+- **Credits**: 25 free on signup; 1 credit per comparison; tracked in `selfbeat_users` DB table
+- **Anti-fraud**: FingerprintJS in `lib/fingerprint.ts`. Device fingerprint stored in `selfbeat_fingerprints` table. On POST `/api/users/me`, if fingerprint was already used on a different account → credits reset to 0, `deviceCreditBlocked: true` returned; frontend shows toast warning.
+- **Free trial**: `POST /api/trial/start` — one-time 3-day Pro trial (no credit card). `trialUsed`, `trialStartDate`, `trialEndDate`, `convertedAfterTrial`, `trialReminderSent`, `trialExpirySent` columns on users table. Trial status returned by `/api/auth/me` and `/api/users/me/credits`. `checkAndDeductCredit()` honours active trial. Email sequences (start, 24h reminder, expiry) via Resend (`RESEND_API_KEY` secret). Post-trial discount ($7.99 first month) applied via Stripe coupon (`STRIPE_TRIAL_DISCOUNT_COUPON` env var) within 24h of expiry.
+- **Trial UI**: `TrialBanner` component (sticky top, real-time countdown, updates every 10s). Paywall overlay shows "Try Pro free for 3 days" when user is signed in and hasn't used trial. Pricing page shows trial offer, active state, and welcome-back offer.
+- **Login log**: `selfbeat_login_log` table — logs every sign-in with userId, ipAddress, timestamp.
+- **Rate limiting**: `express-rate-limit` middleware. `streamRateLimiter` on stream endpoint, `apiRateLimiter` on credit balance endpoint.
+- **Smart blur**: When user has 0 credits (and no active trial/subscription), backend sends `limited: true` → frontend shows Round 1 + blurred Round 2 overlay with trial/upgrade CTA
+- **Pricing page**: `/pricing` — 4 plans: Starter ($4.99/25 credits), Pro Monthly ($9.99), Pro Annual ($79, Save 34%), Team ($39/mo)
+- **Stripe**: Checkout via `/api/stripe/checkout` (supports `applyTrialDiscount` flag for $7.99 coupon), portal via `/api/stripe/portal`, webhook at `/api/stripe/webhook` (must come before express.json!). Coupon ID set via `STRIPE_TRIAL_DISCOUNT_COUPON` env var.
+- **User table**: `selfbeat_users` (id, email, displayName, pictureUrl, credits, stripeCustomerId, stripeSubscriptionId, hasUnlimited, unlimitedUntil, lastSignInAt, trialUsed, trialStartDate, trialEndDate, convertedAfterTrial, trialReminderSent, trialExpirySent)
 - **Fingerprint table**: `selfbeat_fingerprints` (fingerprintId, userId, seenAt)
+- **Email**: Resend package installed. `artifacts/api-server/src/lib/email.ts` — 3 email templates (trial start, 24h reminder, expiry). Gracefully skips if `RESEND_API_KEY` not set (logs instead).
 
 ### Blog
 - Blog posts data: `artifacts/selfbeat/src/lib/blog-posts.ts` (4 posts, HTML content via `dangerouslySetInnerHTML`)

@@ -1,11 +1,12 @@
 import { Router } from "express";
-import { eq, ne, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import {
   db,
   selfbeatUsersTable,
   selfbeatFingerprintsTable,
 } from "@workspace/db";
 import { apiRateLimiter } from "../middlewares/rateLimiter";
+import { sendTrialReminderEmail, sendTrialExpiryEmail } from "../lib/email";
 
 const router = Router();
 
@@ -14,6 +15,53 @@ export function requireAuth(req: any, res: any, next: any) {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
   req.userId = userId;
   next();
+}
+
+function computeTrialFields(user: typeof selfbeatUsersTable.$inferSelect) {
+  const now = new Date();
+  const isOnActiveTrial =
+    user.trialUsed &&
+    user.trialStartDate !== null &&
+    user.trialEndDate !== null &&
+    user.trialEndDate > now;
+
+  const trialExpiredRecently =
+    user.trialUsed &&
+    user.trialEndDate !== null &&
+    user.trialEndDate <= now &&
+    now.getTime() - user.trialEndDate.getTime() < 24 * 60 * 60 * 1000;
+
+  return {
+    isOnActiveTrial: !!isOnActiveTrial,
+    trialEndDate: user.trialEndDate ? user.trialEndDate.toISOString() : null,
+    trialExpiredRecently: !!trialExpiredRecently,
+  };
+}
+
+async function maybeFireTrialEmails(user: typeof selfbeatUsersTable.$inferSelect) {
+  if (!user.trialUsed || !user.trialEndDate) return;
+  const now = new Date();
+  const msLeft = user.trialEndDate.getTime() - now.getTime();
+
+  // Trial is over — send expiry email once
+  if (msLeft <= 0 && !user.trialExpirySent && user.email) {
+    await db
+      .update(selfbeatUsersTable)
+      .set({ trialExpirySent: true })
+      .where(eq(selfbeatUsersTable.id, user.id));
+    sendTrialExpiryEmail(user.email, user.displayName, "WELCOME_BACK").catch(() => {});
+    return;
+  }
+
+  // Within 24h of expiry — send reminder once
+  const hoursLeft = Math.ceil(msLeft / (1000 * 60 * 60));
+  if (msLeft > 0 && msLeft <= 24 * 60 * 60 * 1000 && !user.trialReminderSent && user.email) {
+    await db
+      .update(selfbeatUsersTable)
+      .set({ trialReminderSent: true })
+      .where(eq(selfbeatUsersTable.id, user.id));
+    sendTrialReminderEmail(user.email, user.displayName, hoursLeft).catch(() => {});
+  }
 }
 
 // Register fingerprint + get/refresh user state — called after sign-in
@@ -36,7 +84,6 @@ router.post("/me", requireAuth, async (req: any, res) => {
     let deviceCreditBlocked = false;
 
     if (fingerprint) {
-      // Check if another account already used credits from this device
       const otherAccounts = await db
         .select({ userId: selfbeatFingerprintsTable.userId })
         .from(selfbeatFingerprintsTable)
@@ -55,25 +102,32 @@ router.post("/me", requireAuth, async (req: any, res) => {
         deviceCreditBlocked = true;
       }
 
-      // Track fingerprint for this user (upsert)
       await db
         .insert(selfbeatFingerprintsTable)
         .values({ fingerprintId: fingerprint, userId })
         .onConflictDoNothing();
     }
 
+    // Fire trial emails if needed (fire-and-forget)
+    maybeFireTrialEmails(user).catch(() => {});
+
     const isUnlimited =
       user.hasUnlimited &&
       (!user.unlimitedUntil || user.unlimitedUntil > new Date());
 
-    return res.json({ ...user, isUnlimited, deviceCreditBlocked });
+    return res.json({
+      ...user,
+      isUnlimited,
+      deviceCreditBlocked,
+      ...computeTrialFields(user),
+    });
   } catch (err) {
     console.error("Error in /users/me:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// Get current user's credit balance
+// Get current user's credit balance (also returns trial state)
 router.get(
   "/me/credits",
   requireAuth,
@@ -87,12 +141,21 @@ router.get(
         .where(eq(selfbeatUsersTable.id, userId))
         .limit(1);
 
-      if (!rows.length) return res.json({ credits: 0, isUnlimited: false });
+      if (!rows.length) return res.json({ credits: 0, isUnlimited: false, isOnActiveTrial: false });
       const user = rows[0];
+
+      // Fire trial emails opportunistically
+      maybeFireTrialEmails(user).catch(() => {});
+
       const isUnlimited =
         user.hasUnlimited &&
         (!user.unlimitedUntil || user.unlimitedUntil > new Date());
-      return res.json({ credits: user.credits, isUnlimited });
+
+      return res.json({
+        credits: user.credits,
+        isUnlimited,
+        ...computeTrialFields(user),
+      });
     } catch {
       return res.status(500).json({ error: "Internal server error" });
     }

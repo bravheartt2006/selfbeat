@@ -148,9 +148,28 @@ router.get("/success", (_req, res) => {
 router.get("/me", (req, res) => {
   const user = req.user as any;
   if (!user) return res.status(401).json({ error: "Unauthenticated" });
+  const now = new Date();
   const isUnlimited =
-    user.hasUnlimited && (!user.unlimitedUntil || new Date(user.unlimitedUntil) > new Date());
-  res.json({ ...user, isUnlimited });
+    user.hasUnlimited && (!user.unlimitedUntil || new Date(user.unlimitedUntil) > now);
+  const isOnActiveTrial =
+    user.trialUsed &&
+    user.trialStartDate &&
+    user.trialEndDate &&
+    new Date(user.trialEndDate) > now;
+  const trialEndDate = user.trialEndDate ? new Date(user.trialEndDate).toISOString() : null;
+  const trialExpiredRecently =
+    user.trialUsed &&
+    user.trialEndDate &&
+    new Date(user.trialEndDate) <= now &&
+    now.getTime() - new Date(user.trialEndDate).getTime() < 24 * 60 * 60 * 1000;
+
+  res.json({
+    ...user,
+    isUnlimited,
+    isOnActiveTrial,
+    trialEndDate,
+    trialExpiredRecently,
+  });
 });
 
 // Sign out
