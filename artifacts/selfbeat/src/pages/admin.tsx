@@ -91,7 +91,8 @@ function StatCard({
 export default function AdminPage() {
   const { user, isLoaded, isSignedIn } = useAppAuth();
   const [, setLocation] = useLocation();
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean | "denied" | null>(null);
+  const [accessDeniedReason, setAccessDeniedReason] = useState("");
 
   // Stats
   const [stats, setStats] = useState<Stats | null>(null);
@@ -117,20 +118,27 @@ export default function AdminPage() {
   useEffect(() => {
     if (!isLoaded) return;
     if (!isSignedIn) {
-      setLocation("/");
+      setIsAdmin("denied");
+      setAccessDeniedReason("You must be signed in to access the admin panel.");
       return;
     }
     fetch("/api/admin/check", { credentials: "include" })
       .then((r) => r.json())
       .then((d) => {
         if (!d.isAdmin) {
-          setLocation("/");
+          setIsAdmin("denied");
+          setAccessDeniedReason(
+            `${user?.email ?? "This account"} does not have admin privileges.`
+          );
         } else {
           setIsAdmin(true);
         }
       })
-      .catch(() => setLocation("/"));
-  }, [isLoaded, isSignedIn, setLocation]);
+      .catch(() => {
+        setIsAdmin("denied");
+        setAccessDeniedReason("Could not verify admin access. Please try again.");
+      });
+  }, [isLoaded, isSignedIn, user, setLocation]);
 
   // ── Data loaders ────────────────────────────────────────────────────────────
 
@@ -251,7 +259,29 @@ export default function AdminPage() {
     );
   }
 
-  if (!isAdmin) return null;
+  if (isAdmin === "denied") {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] px-4">
+        <div className="max-w-md w-full border border-destructive/30 bg-destructive/5 rounded-2xl p-8 text-center space-y-4">
+          <div className="flex justify-center">
+            <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
+              <Shield className="h-6 w-6 text-destructive" />
+            </div>
+          </div>
+          <h1 className="text-xl font-serif font-bold">Access Denied</h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">{accessDeniedReason}</p>
+          {isSignedIn && (
+            <p className="text-xs text-muted-foreground">
+              Signed in as <span className="font-mono font-medium text-foreground">{user?.email}</span>
+            </p>
+          )}
+          <Button variant="outline" size="sm" onClick={() => setLocation("/")}>
+            Go to Home
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const formatCurrency = (cents: number | null) => {
     if (cents === null) return "N/A";
@@ -265,10 +295,18 @@ export default function AdminPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Shield className="h-6 w-6 text-primary" />
+          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <Shield className="h-5 w-5 text-primary" />
+          </div>
           <div>
             <h1 className="text-2xl font-serif font-bold">Admin Panel</h1>
-            <p className="text-sm text-muted-foreground">{user?.email}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="flex items-center gap-1 text-xs font-semibold text-green-400 bg-green-500/10 border border-green-500/25 px-2 py-0.5 rounded-full">
+                <CheckCircle className="h-3 w-3" />
+                Admin Access Granted
+              </span>
+              <span className="text-xs text-muted-foreground font-mono">{user?.email}</span>
+            </div>
           </div>
         </div>
         <Button
