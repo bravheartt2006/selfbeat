@@ -1,0 +1,71 @@
+Create a public Featured Results page that showcases the most interesting AI self-critiques. Implement the following:
+
+PAGE LOCATION:
+1. Create a new page at /featured
+2. Add "Featured" link in the main navigation menu
+3. This page is publicly accessible — no sign in required to view
+4. Show a "Try Selfbeat free" banner at the top for non-signed-in visitors
+
+FEATURED RESULTS DISPLAY:
+5. Show a grid of featured comparison cards
+6. Each card shows:
+   - The question that was asked
+   - Which AI won the comparison
+   - A short highlight quote from the most surprising self-critique
+   - Number of user votes
+   - Date of comparison
+   - A "View full result" button
+7. Sort by most interesting/most voted first
+8. Add filtering tabs at the top:
+   - "Most Voted"
+   - "Most Recent"
+   - "Most Surprising" (biggest difference between Round 1 and Round 2)
+   - "Today's Featured"
+9. Add a search bar to search featured results by keyword
+10. Load 12 results per page with a "Load more" button
+
+SUBMISSION SYSTEM:
+11. After completing a comparison, show a button: "Submit to Featured"
+12. When clicked show a confirmation: "Submit this comparison to be featured on the public Featured page?"
+13. Store submission in database with status: pending, approved, rejected
+14. Admin can approve or reject submissions from admin panel
+
+ADMIN CONTROLS:
+15. In admin panel add a Featured Results section:
+    - See all pending submissions
+    - Approve or reject each submission
+    - Manually feature any comparison
+    - Remove a featured result
+    - Set a comparison as "Today's Featured"
+
+SHARING:
+16. Each featured result has a unique shareable URL: selfbeat.ai/featured/[unique-id]
+17. Add share buttons on each featured result page:
+    - X (Twitter)
+    - Reddit
+    - LinkedIn
+    - WhatsApp
+    - Copy link
+18. When shared on social media show a rich preview card with:
+    - Title: "AI judged itself on Selfbeat — see what happened"
+    - Description: the question that was asked
+    - selfbeat.ai URL
+
+SEO:
+19. Each featured result page should have proper SEO meta tags
+20. Title: "[Question] — Selfbeat AI Comparison"
+21. Description: "See how AI models answered and judged themselves on Selfbeat"
+22. This drives organic Google traffic over time
+
+BACKEND:
+23. Create database table: featured_results (id, comparison_id, submitted_by, status, featured_date, views, created_at)
+24. Create API endpoints:
+    - GET /api/featured — get all approved featured results
+    - POST /api/featured/submit — submit a comparison for featuring
+    - GET /api/featured/:id — get single featured result
+    - PUT /api/featured/:id/approve — admin approve
+    - PUT /api/featured/:id/reject — admin reject
+
+25. Style the featured page to match the existing website design
+26. Make sure the featured page works correctly on mobile devices
+27. Add a view counter that increments each time a featured result is viewed

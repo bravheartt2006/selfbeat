@@ -39,6 +39,26 @@ Primary web artifact: **Selfbeat** — a production React/Vite app where users s
 - **Admin UI**: `/admin/qotd` page — password-protected (stores key in localStorage), shows today/tomorrow question, lists all questions with activate/deactivate, add new question form.
 - **Email**: Resend package installed. `artifacts/api-server/src/lib/email.ts` — 3 email templates (trial start, 24h reminder, expiry). Gracefully skips if `RESEND_API_KEY` not set (logs instead).
 
+### Featured Results System
+- **Featured page**: `/featured` — public gallery of curated AI self-critiques. Sort tabs: Most Voted, Most Recent, Most Surprising, Today's Featured. Keyword search. Load 12 per page with "Load more". CTA banner for non-signed-in visitors.
+- **Featured result page**: `/featured/:id` — individual featured result with full verdict summary, model scores, share buttons (X, Reddit, LinkedIn, WhatsApp, Copy link). SEO meta tags set dynamically (`og:title`, `og:description`, `twitter:*`). View counter increments on each load.
+- **Submit to Featured**: Button appears on streaming results page after verdict is shown. Shows inline confirmation dialog → calls `POST /api/featured/submit`. Deduplicates by comparisonId. Auth required.
+- **DB table**: `selfbeat_featured_results` (id UUID PK, comparison_id UUID, submitted_by text, status text pending/approved/rejected, is_today_featured bool, highlight_quote text, admin_note text, view_count int, created_at, featured_at)
+- **Schema**: `lib/db/src/schema/selfbeatFeaturedResults.ts`, exported from `lib/db/src/schema/index.ts`
+- **API routes** (`artifacts/api-server/src/routes/featured.ts`):
+  - `GET /api/featured` — public list (sort, search, page params)
+  - `GET /api/featured/:id` — single result + increments view count
+  - `POST /api/featured/submit` — user submission (auth required, deduplicates)
+  - `GET /api/featured/admin/pending` — admin only
+  - `GET /api/featured/admin/all` — admin only
+  - `PUT /api/featured/:id/approve` — admin approve
+  - `PUT /api/featured/:id/reject` — admin reject
+  - `POST /api/featured/admin/feature` — manually feature any comparison by UUID
+  - `DELETE /api/featured/:id` — remove featured result
+  - `PUT /api/featured/:id/set-today` — set as today's featured (clears all others)
+- **Admin panel section**: Pending submissions (approve/reject/set-today), All results list (status, views, remove, set-today), Manual feature form (comparison UUID + optional highlight quote)
+- **Navbar**: "Featured" link added between Home and Leaderboard
+
 ### Blog
 - Blog posts data: `artifacts/selfbeat/src/lib/blog-posts.ts` (4 posts, HTML content via `dangerouslySetInnerHTML`)
 - Blog list: `/blog` → `pages/blog.tsx`; Blog detail: `/blog/:slug` → `pages/blog-post.tsx`

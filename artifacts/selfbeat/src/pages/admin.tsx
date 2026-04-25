@@ -24,6 +24,7 @@ import {
   CalendarDays,
   AlertTriangle,
   Star,
+  Trophy,
   Activity,
   Mail,
   Send,
@@ -207,6 +208,16 @@ export default function AdminPage() {
   const [banning, setBanning] = useState(false);
   const [banMsg, setBanMsg] = useState("");
 
+  // Featured results
+  const [featuredPending, setFeaturedPending] = useState<any[]>([]);
+  const [featuredAll, setFeaturedAll] = useState<any[]>([]);
+  const [featuredLoading, setFeaturedLoading] = useState(false);
+  const [featuredMsg, setFeaturedMsg] = useState<Record<string, string>>({});
+  const [manualCompId, setManualCompId] = useState("");
+  const [manualHighlight, setManualHighlight] = useState("");
+  const [manualFeaturing, setManualFeaturing] = useState(false);
+  const [manualMsg, setManualMsg] = useState("");
+
   // ── Auth check ───────────────────────────────────────────────────────────────
 
   const runAdminCheck = useCallback(async () => {
@@ -268,13 +279,77 @@ export default function AdminPage() {
     }
   }, []);
 
+  const loadFeatured = useCallback(async () => {
+    setFeaturedLoading(true);
+    try {
+      const [pendingRes, allRes] = await Promise.all([
+        fetch("/api/featured/admin/pending", { credentials: "include" }),
+        fetch("/api/featured/admin/all", { credentials: "include" }),
+      ]);
+      if (pendingRes.ok) setFeaturedPending((await pendingRes.json()).results ?? []);
+      if (allRes.ok) setFeaturedAll((await allRes.json()).results ?? []);
+    } finally {
+      setFeaturedLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (isAdmin === true) {
       loadStats();
       loadQotd();
       loadEmailStats();
+      loadFeatured();
     }
-  }, [isAdmin, loadStats, loadQotd, loadEmailStats]);
+  }, [isAdmin, loadStats, loadQotd, loadEmailStats, loadFeatured]);
+
+  const handleFeaturedAction = async (id: string, action: "approve" | "reject" | "set-today" | "remove") => {
+    setFeaturedMsg(prev => ({ ...prev, [id]: "…" }));
+    try {
+      let r: Response;
+      if (action === "remove") {
+        r = await fetch(`/api/featured/${id}`, { method: "DELETE", credentials: "include" });
+      } else if (action === "set-today") {
+        r = await fetch(`/api/featured/${id}/set-today`, { method: "PUT", credentials: "include" });
+      } else {
+        r = await fetch(`/api/featured/${id}/${action}`, { method: "PUT", credentials: "include" });
+      }
+      const d = await r.json();
+      if (d.success) {
+        setFeaturedMsg(prev => ({ ...prev, [id]: action === "approve" ? "Approved!" : action === "reject" ? "Rejected" : action === "set-today" ? "Set as Today's!" : "Removed" }));
+        await loadFeatured();
+      } else {
+        setFeaturedMsg(prev => ({ ...prev, [id]: d.error ?? "Failed" }));
+      }
+    } catch {
+      setFeaturedMsg(prev => ({ ...prev, [id]: "Error" }));
+    }
+  };
+
+  const handleManualFeature = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualCompId.trim()) return;
+    setManualFeaturing(true);
+    setManualMsg("");
+    try {
+      const r = await fetch("/api/featured/admin/feature", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comparisonId: manualCompId.trim(), highlightQuote: manualHighlight.trim() || undefined }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        setManualMsg("Featured successfully!");
+        setManualCompId("");
+        setManualHighlight("");
+        await loadFeatured();
+      } else {
+        setManualMsg(d.error ?? "Failed");
+      }
+    } finally {
+      setManualFeaturing(false);
+    }
+  };
 
   // ── User search ──────────────────────────────────────────────────────────────
 
@@ -937,6 +1012,158 @@ export default function AdminPage() {
                   )}
                 </div>
 
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* ── FEATURED RESULTS SECTION ──────────────────────────────────────────── */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+            <Star className="h-4 w-4 text-amber-400" />
+            Featured Results
+          </h2>
+          <Button variant="ghost" size="sm" onClick={loadFeatured} disabled={featuredLoading} className="text-xs gap-1">
+            <RefreshCw className={`h-3 w-3 ${featuredLoading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
+
+        {/* Manual feature by comparison ID */}
+        <Card className="mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Plus className="h-4 w-4 text-primary" />
+              Manually Feature a Comparison
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-2">
+            <form onSubmit={handleManualFeature} className="space-y-2">
+              <Input
+                placeholder="Comparison UUID…"
+                value={manualCompId}
+                onChange={(e) => setManualCompId(e.target.value)}
+                className="font-mono text-xs"
+              />
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Highlight quote (optional)…"
+                  value={manualHighlight}
+                  onChange={(e) => setManualHighlight(e.target.value)}
+                  className="flex-1"
+                />
+                <Button type="submit" disabled={manualFeaturing || !manualCompId.trim()} className="gap-1.5 shrink-0">
+                  <Star className="h-3.5 w-3.5" />
+                  Feature
+                </Button>
+              </div>
+            </form>
+            {manualMsg && (
+              <p className="text-xs text-green-400 flex items-center gap-1.5">
+                <CheckCircle className="h-3.5 w-3.5" />{manualMsg}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Pending submissions */}
+        <Card className="mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Clock className="h-4 w-4 text-amber-400" />
+              Pending Submissions
+              {featuredPending.length > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold">{featuredPending.length}</span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {featuredPending.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">No pending submissions.</p>
+            ) : (
+              <div className="space-y-3">
+                {featuredPending.map((item: any) => (
+                  <div key={item.id} className="border border-border/30 rounded-xl p-3 space-y-2">
+                    <p className="text-sm font-medium leading-snug line-clamp-2">{item.question}</p>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      {item.winner && <span className="flex items-center gap-1"><Trophy className="h-3 w-3 text-amber-400" />{item.winner}</span>}
+                      <span className="font-mono text-[10px] opacity-60">{item.comparisonId?.slice(0, 8)}…</span>
+                      <span>{fmtDate(item.createdAt)}</span>
+                    </div>
+                    {item.highlightQuote && (
+                      <p className="text-xs text-muted-foreground italic line-clamp-2 border-l-2 border-primary/30 pl-2">"{item.highlightQuote}"</p>
+                    )}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 border-green-500/40 text-green-400 hover:bg-green-500/10"
+                        onClick={() => handleFeaturedAction(item.id, "approve")}>
+                        <CheckCircle className="h-3 w-3" /> Approve
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 border-destructive/40 text-destructive hover:bg-destructive/10"
+                        onClick={() => handleFeaturedAction(item.id, "reject")}>
+                        <XCircle className="h-3 w-3" /> Reject
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+                        onClick={() => handleFeaturedAction(item.id, "set-today")}>
+                        <Star className="h-3 w-3" /> Set Today's
+                      </Button>
+                    </div>
+                    {featuredMsg[item.id] && (
+                      <p className="text-xs text-green-400">{featuredMsg[item.id]}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* All featured results */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Star className="h-4 w-4 text-primary" />
+              All Featured Results ({featuredAll.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {featuredAll.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">No featured results yet.</p>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                {featuredAll.map((item: any) => (
+                  <div key={item.id} className={`flex items-start gap-3 p-2.5 rounded-lg border text-xs ${
+                    item.status === "approved" ? "border-green-500/20 bg-green-500/5" :
+                    item.status === "rejected" ? "border-destructive/20 bg-destructive/5" :
+                    "border-border/30 bg-muted/10"
+                  }`}>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium line-clamp-1 text-foreground/90">{item.question}</p>
+                      <div className="flex items-center gap-2 mt-0.5 text-muted-foreground">
+                        <span className={`font-semibold ${
+                          item.status === "approved" ? "text-green-400" :
+                          item.status === "rejected" ? "text-destructive" : "text-amber-400"
+                        }`}>{item.status}</span>
+                        {item.isTodayFeatured && <span className="text-amber-400 font-bold">★ Today</span>}
+                        <span>{item.viewCount} views</span>
+                        <span>{fmtDate(item.createdAt)}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      {item.status === "approved" && !item.isTodayFeatured && (
+                        <button onClick={() => handleFeaturedAction(item.id, "set-today")}
+                          className="px-2 py-1 rounded text-[10px] border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors">
+                          Today
+                        </button>
+                      )}
+                      <button onClick={() => handleFeaturedAction(item.id, "remove")}
+                        className="px-2 py-1 rounded text-[10px] border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors">
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>

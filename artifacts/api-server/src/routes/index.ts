@@ -12,6 +12,7 @@ import adminRouter from "./admin";
 import emailRouter from "./email";
 import referralRouter from "./referral";
 import giftsRouter from "./gifts";
+import featuredRouter from "./featured";
 
 const router: IRouter = Router();
 
@@ -27,6 +28,7 @@ router.use("/admin", adminRouter);
 router.use(emailRouter);
 router.use(referralRouter);
 router.use(giftsRouter);
+router.use(featuredRouter);
 router.use(selfbeatRouter);
 
 export default router;

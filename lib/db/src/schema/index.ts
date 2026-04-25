@@ -31,3 +31,4 @@ export * from "./selfbeatEmailPreferences";
 export * from "./selfbeatEmailLogs";
 export * from "./selfbeatReferrals";
 export * from "./selfbeatGifts";
+export * from "./selfbeatFeaturedResults";

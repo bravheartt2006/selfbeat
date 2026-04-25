@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, Fragment } from "react";
 import { useSearch, useLocation } from "wouter";
 import { saveResult } from "@/lib/store";
 import { useLanguage } from "@/lib/language-context";
@@ -7,7 +7,7 @@ import { useAppAuth } from "@/lib/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Share2, Trophy, MessageSquareQuote, XCircle, Database, X,
-  Stethoscope, AlertTriangle, Copy, ChevronRight, Zap, Clock, Hourglass, Square, Lock,
+  Stethoscope, AlertTriangle, Copy, ChevronRight, Zap, Clock, Hourglass, Square, Lock, Star,
 } from "lucide-react";
 import { VotePanel } from "@/components/VotePanel";
 import { Button } from "@/components/ui/button";
@@ -683,6 +683,83 @@ function ShareResultButton() {
   );
 }
 
+function SubmitToFeaturedButton({ comparisonId }: { comparisonId: string }) {
+  const [state, setState] = useState<"idle" | "confirming" | "loading" | "done" | "error">("idle");
+  const [msg, setMsg] = useState("");
+
+  const handleSubmit = async () => {
+    setState("loading");
+    try {
+      const r = await fetch("/api/featured/submit", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comparisonId }),
+      });
+      const d = await r.json();
+      if (r.ok && d.success) {
+        if (d.alreadySubmitted) {
+          setMsg(d.status === "approved" ? "Already featured!" : "Already submitted — pending review.");
+        } else {
+          setMsg("Submitted! Our team will review it shortly.");
+        }
+        setState("done");
+      } else {
+        setMsg(d.error ?? "Failed to submit.");
+        setState("error");
+      }
+    } catch {
+      setMsg("Something went wrong.");
+      setState("error");
+    }
+  };
+
+  if (state === "done") {
+    return (
+      <div className="flex items-center gap-2 text-xs text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
+        <Star className="h-3.5 w-3.5 shrink-0" />
+        {msg}
+      </div>
+    );
+  }
+
+  if (state === "error") {
+    return (
+      <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+        {msg}
+      </div>
+    );
+  }
+
+  if (state === "confirming") {
+    return (
+      <div className="flex items-center gap-2 bg-card border border-border/40 rounded-xl px-4 py-3 animate-in fade-in duration-200">
+        <Star className="h-4 w-4 text-amber-400 shrink-0" />
+        <span className="text-sm text-foreground flex-1">Submit this comparison to the public Featured page?</span>
+        <div className="flex gap-2">
+          <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs" onClick={() => setState("idle")}>Cancel</Button>
+          <Button size="sm" className="h-7 px-2.5 text-xs gap-1" onClick={handleSubmit} disabled={state === "loading"}>
+            {state === "loading" && <span className="h-3 w-3 border border-current border-t-transparent rounded-full animate-spin" />}
+            Submit
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => setState("confirming")}
+      className="gap-1.5 text-xs h-8 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/60"
+    >
+      <Star className="h-3.5 w-3.5" />
+      Submit to Featured
+    </Button>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function StreamingResults() {
@@ -1251,11 +1328,14 @@ export default function StreamingResults() {
         </div>
       )}
 
-      {/* Share button — full result (verdict shown) */}
+      {/* Share + Submit to Featured — full result (verdict shown) */}
       {!isLimited && verdict && showRound2 && phase === "done" && (
-        <div className="flex flex-col items-center gap-2 mb-8 animate-in fade-in duration-700">
+        <div className="flex flex-col items-center gap-3 mb-8 animate-in fade-in duration-700">
           <p className="text-xs text-muted-foreground">Enjoyed the verdict? Spread the word.</p>
-          <ShareResultButton />
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <ShareResultButton />
+            {comparisonId && <SubmitToFeaturedButton comparisonId={comparisonId} />}
+          </div>
         </div>
       )}
 
