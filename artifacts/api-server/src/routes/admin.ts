@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { count, desc, eq, gte, sql } from "drizzle-orm";
-import { db, selfbeatUsersTable, selfbeatSettingsTable, selfbeatDailyRunsTable } from "@workspace/db";
+import { db, selfbeatUsersTable, selfbeatSettingsTable, selfbeatDailyRunsTable, selfbeatEmailPreferencesTable, selfbeatEmailLogsTable } from "@workspace/db";
+import { sendWeeklyDigestToAll } from "../services/emailScheduler";
+import { sendEmail } from "../services/emailService";
 
 const router = Router();
 
@@ -249,6 +251,101 @@ router.post("/ban-user", async (req: any, res) => {
   } catch (err) {
     console.error("[admin] /ban-user error:", err);
     res.status(500).json({ error: "Failed to update ban status" });
+  }
+});
+
+// ── /email-stats ──────────────────────────────────────────────────────────────
+
+router.get("/email-stats", async (req: any, res) => {
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const totalUsers = await db.select({ cnt: count() }).from(selfbeatUsersTable);
+    const totalCount = Number(totalUsers[0]?.cnt ?? 0);
+
+    const prefs = await db.select().from(selfbeatEmailPreferencesTable);
+    const unsubscribed = prefs.filter(p => !!p.unsubscribedAt).length;
+    const subscribed = totalCount - unsubscribed;
+
+    const weeklyDigestOn = prefs.filter(p => !p.unsubscribedAt && p.weeklyDigest !== false).length
+      + (totalCount - prefs.length); // users with no prefs row = default true
+    const streakOn = prefs.filter(p => !p.unsubscribedAt && p.streakReminders !== false).length
+      + (totalCount - prefs.length);
+    const creditOn = prefs.filter(p => !p.unsubscribedAt && p.creditWarnings !== false).length
+      + (totalCount - prefs.length);
+    const promoOn = prefs.filter(p => !p.unsubscribedAt && p.promotional !== false).length
+      + (totalCount - prefs.length);
+
+    // Last 50 logs
+    const logs = await db
+      .select()
+      .from(selfbeatEmailLogsTable)
+      .orderBy(desc(selfbeatEmailLogsTable.sentAt))
+      .limit(50);
+
+    const sentCount = logs.filter(l => l.status === "sent").length;
+    const failCount = logs.filter(l => l.status === "failed").length;
+    const successRate = logs.length > 0 ? Math.round((sentCount / logs.length) * 100) : null;
+
+    res.json({
+      totalUsers: totalCount,
+      subscribed,
+      unsubscribed,
+      weeklyDigest: weeklyDigestOn,
+      streakReminders: streakOn,
+      creditWarnings: creditOn,
+      promotional: promoOn,
+      recentLogs: logs,
+      successRate,
+    });
+  } catch (err) {
+    console.error("[admin] /email-stats error:", err);
+    res.status(500).json({ error: "Failed to load email stats" });
+  }
+});
+
+// ── /send-test-email ──────────────────────────────────────────────────────────
+
+router.post("/send-test-email", async (req: any, res) => {
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (!adminEmail) return res.status(400).json({ error: "ADMIN_EMAIL not configured" });
+    const result = await sendWeeklyDigestToAll(adminEmail);
+    res.json({ success: true, result });
+  } catch (err) {
+    console.error("[admin] /send-test-email error:", err);
+    res.status(500).json({ error: "Failed to send test email" });
+  }
+});
+
+// ── /trigger-weekly-digest ────────────────────────────────────────────────────
+
+router.post("/trigger-weekly-digest", async (req: any, res) => {
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    res.json({ success: true, message: "Weekly digest is being sent in the background. Check email logs." });
+    // Fire and forget
+    sendWeeklyDigestToAll().catch(err => console.error("[admin] trigger-weekly-digest error:", err));
+  } catch (err) {
+    console.error("[admin] /trigger-weekly-digest error:", err);
+    res.status(500).json({ error: "Failed to trigger digest" });
+  }
+});
+
+// ── /email-logs ───────────────────────────────────────────────────────────────
+
+router.get("/email-logs", async (req: any, res) => {
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const logs = await db
+      .select()
+      .from(selfbeatEmailLogsTable)
+      .orderBy(desc(selfbeatEmailLogsTable.sentAt))
+      .limit(100);
+    res.json({ logs });
+  } catch (err) {
+    console.error("[admin] /email-logs error:", err);
+    res.status(500).json({ error: "Failed to load email logs" });
   }
 });
 

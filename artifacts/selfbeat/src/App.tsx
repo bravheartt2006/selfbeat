@@ -19,6 +19,8 @@ import TermsOfService from "@/pages/terms";
 import AdminQotd from "@/pages/admin-qotd";
 import AdminPage from "@/pages/admin";
 import AdminDebugPage from "@/pages/admin-debug";
+import SettingsPage from "@/pages/settings";
+import UnsubscribePage from "@/pages/unsubscribe";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import TrialBanner from "@/components/TrialBanner";
@@ -76,6 +78,8 @@ function Router() {
                 <Route path="/admin" component={AdminPage} />
                 <Route path="/admin/debug" component={AdminDebugPage} />
                 <Route path="/admin/qotd" component={AdminQotd} />
+                <Route path="/settings" component={SettingsPage} />
+                <Route path="/unsubscribe/:token" component={UnsubscribePage} />
                 <Route component={NotFound} />
               </Switch>
             </RequireAuth>

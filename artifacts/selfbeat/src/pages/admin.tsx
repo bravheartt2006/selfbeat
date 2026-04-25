@@ -25,6 +25,11 @@ import {
   AlertTriangle,
   Star,
   Activity,
+  Mail,
+  Send,
+  Play,
+  FileText,
+  BellOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +70,18 @@ interface AdminUser {
   totalQotdRuns: number;
   trialUsed: boolean;
   trialEndDate: string | null;
+}
+
+interface EmailStats {
+  totalUsers: number;
+  subscribed: number;
+  unsubscribed: number;
+  weeklyDigest: number;
+  streakReminders: number;
+  creditWarnings: number;
+  promotional: number;
+  successRate: number | null;
+  recentLogs: { id: number; userId: string; emailType: string; sentAt: string; status: string; error: string | null; recipientEmail: string | null }[];
 }
 
 interface QotdQuestion {
@@ -172,6 +189,14 @@ export default function AdminPage() {
   const [settingOverride, setSettingOverride] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
 
+  // Email management
+  const [emailStats, setEmailStats] = useState<EmailStats | null>(null);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
+  const [triggeringDigest, setTriggeringDigest] = useState(false);
+  const [emailMsg, setEmailMsg] = useState("");
+  const [showEmailLogs, setShowEmailLogs] = useState(false);
+
   // User management
   const [searchEmail, setSearchEmail] = useState("");
   const [searching, setSearching] = useState(false);
@@ -215,6 +240,16 @@ export default function AdminPage() {
     }
   }, []);
 
+  const loadEmailStats = useCallback(async () => {
+    setEmailLoading(true);
+    try {
+      const res = await fetch("/api/admin/email-stats", { credentials: "include" });
+      if (res.ok) setEmailStats(await res.json());
+    } finally {
+      setEmailLoading(false);
+    }
+  }, []);
+
   const loadQotd = useCallback(async () => {
     setQotdLoading(true);
     try {
@@ -237,8 +272,9 @@ export default function AdminPage() {
     if (isAdmin === true) {
       loadStats();
       loadQotd();
+      loadEmailStats();
     }
-  }, [isAdmin, loadStats, loadQotd]);
+  }, [isAdmin, loadStats, loadQotd, loadEmailStats]);
 
   // ── User search ──────────────────────────────────────────────────────────────
 
@@ -615,6 +651,138 @@ export default function AdminPage() {
               ))}
             </div>
           </CardContent>
+        </Card>
+      </section>
+
+      {/* ── EMAIL MANAGEMENT ─────────────────────────────────────────────────────── */}
+      <section>
+        <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">Email Management</h2>
+
+        {/* Subscriber stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <StatCard icon={Users} label="Total Subscribers" value={emailStats ? `${emailStats.subscribed} / ${emailStats.totalUsers}` : "—"} color="text-blue-400" />
+          <StatCard icon={Mail} label="Weekly Digest" value={emailStats?.weeklyDigest ?? "—"} sub="opted in" color="text-violet-400" />
+          <StatCard icon={BellOff} label="Unsubscribed" value={emailStats?.unsubscribed ?? "—"} color="text-muted-foreground" />
+          <StatCard icon={CheckCircle} label="Delivery Rate" value={emailStats?.successRate != null ? `${emailStats.successRate}%` : "N/A"} color="text-green-400" />
+        </div>
+
+        {/* Subscriber breakdown */}
+        <Card className="mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Mail className="h-4 w-4 text-primary" />
+              Email Type Subscriptions
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 grid grid-cols-2 gap-3">
+            {[
+              { label: "Weekly Digest", value: emailStats?.weeklyDigest },
+              { label: "Streak Reminders", value: emailStats?.streakReminders },
+              { label: "Credit Warnings", value: emailStats?.creditWarnings },
+              { label: "Promotional", value: emailStats?.promotional },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between bg-muted/20 rounded-lg px-4 py-3">
+                <span className="text-sm text-muted-foreground">{label}</span>
+                <span className="font-bold text-foreground">{value ?? "—"}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* Admin controls */}
+        <Card className="mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Send className="h-4 w-4 text-primary" />
+              Admin Controls
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-3">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                variant="outline"
+                className="gap-2 flex-1"
+                disabled={sendingTest}
+                onClick={async () => {
+                  setSendingTest(true);
+                  setEmailMsg("");
+                  try {
+                    const r = await fetch("/api/admin/send-test-email", { method: "POST", credentials: "include" });
+                    const d = await r.json();
+                    setEmailMsg(d.success ? "Test email sent to admin address!" : `Error: ${d.error}`);
+                  } finally {
+                    setSendingTest(false);
+                  }
+                }}
+              >
+                {sendingTest ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Send Test Email to Admin
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2 flex-1 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+                disabled={triggeringDigest}
+                onClick={async () => {
+                  setTriggeringDigest(true);
+                  setEmailMsg("");
+                  try {
+                    const r = await fetch("/api/admin/trigger-weekly-digest", { method: "POST", credentials: "include" });
+                    const d = await r.json();
+                    setEmailMsg(d.message ?? (d.success ? "Weekly digest triggered!" : `Error: ${d.error}`));
+                  } finally {
+                    setTriggeringDigest(false);
+                  }
+                }}
+              >
+                {triggeringDigest ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                Trigger Weekly Digest (All Users)
+              </Button>
+            </div>
+            {emailMsg && (
+              <p className="text-xs text-green-400 flex items-center gap-1.5">
+                <CheckCircle className="h-3.5 w-3.5" />{emailMsg}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Email logs */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <FileText className="h-4 w-4 text-primary" />
+                Delivery Logs
+                <span className="text-xs font-normal text-muted-foreground">(last 50)</span>
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => { setShowEmailLogs(v => !v); if (!showEmailLogs) loadEmailStats(); }} className="text-xs gap-1">
+                {showEmailLogs ? "Hide" : "Show logs"}
+                <ChevronRight className={`h-3 w-3 transition-transform ${showEmailLogs ? "rotate-90" : ""}`} />
+              </Button>
+            </div>
+          </CardHeader>
+          {showEmailLogs && (
+            <CardContent className="pt-0">
+              {!emailStats?.recentLogs?.length ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No emails sent yet.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                  {emailStats.recentLogs.map((log) => (
+                    <div key={log.id} className="flex items-center gap-3 text-xs py-1.5 px-2 rounded-lg bg-muted/10">
+                      <span className={`shrink-0 px-1.5 py-0.5 rounded font-semibold ${
+                        log.status === "sent" ? "bg-green-500/15 text-green-400" :
+                        log.status === "failed" ? "bg-destructive/15 text-destructive" :
+                        "bg-muted/30 text-muted-foreground"
+                      }`}>{log.status}</span>
+                      <span className="text-muted-foreground shrink-0 font-mono">{log.emailType}</span>
+                      <span className="text-foreground/70 truncate flex-1">{log.recipientEmail ?? log.userId}</span>
+                      <span className="text-muted-foreground shrink-0 font-mono">{new Date(log.sentAt).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          )}
         </Card>
       </section>
 

@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
+import { startEmailScheduler } from "./services/emailScheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -33,6 +34,7 @@ async function ensureSessionTable() {
 
 ensureSessionTable()
   .then(() => {
+    startEmailScheduler();
     app.listen(port, (err) => {
       if (err) {
         logger.error({ err }, "Error listening on port");

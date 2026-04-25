@@ -1,0 +1,61 @@
+Add a weekly email digest feature to keep users engaged and coming back. Implement the following:
+
+EMAIL DIGEST CONTENT:
+1. Send a weekly email every Monday morning at 9am to all registered users
+2. The email should contain:
+   - Subject: "Your Selfbeat Weekly: The most interesting AI self-critiques this week"
+   - Top 3 most interesting questions asked on Selfbeat that week
+   - Which AI won each comparison
+   - One surprising or funny AI self-critique highlight
+   - The current leaderboard standings
+   - User's personal stats:
+     * Questions asked this week
+     * Current streak
+     * Credits remaining
+     * Subscription status
+   - A "Ask this week's featured question free" button linking to daily question
+   - A clear unsubscribe link at the bottom
+
+EMAIL PREFERENCES:
+3. Add email preferences in user profile settings:
+   - Toggle to enable/disable weekly digest (default: enabled)
+   - Toggle to enable/disable streak reminders (default: enabled)
+   - Toggle to enable/disable credit warnings (default: enabled)
+   - Toggle to enable/disable promotional emails (default: enabled)
+4. Store email preferences in database
+5. Always respect unsubscribe requests immediately
+
+UNSUBSCRIBE:
+6. Every email must have an unsubscribe link at the bottom
+7. Clicking unsubscribe takes user to a simple page:
+   "You have been unsubscribed from Selfbeat emails"
+   with an option to resubscribe
+8. Update database immediately when user unsubscribes
+9. Never send emails to unsubscribed users
+
+EMAIL INFRASTRUCTURE:
+10. Use Nodemailer with Gmail SMTP or integrate with Mailchimp API for sending emails
+11. Store email templates as clean HTML with Selfbeat branding
+12. Add environment variables for email service credentials:
+    SMTP_EMAIL and SMTP_PASSWORD or MAILCHIMP_API_KEY
+13. Create a job scheduler using node-cron to send emails automatically every Monday at 9am UTC
+14. Log all sent emails in the database: email_logs (user_id, email_type, sent_at, status)
+
+ADMIN CONTROLS:
+15. In the admin panel add an email section:
+    - See how many users are subscribed to each email type
+    - Send a test email to admin email
+    - Manually trigger the weekly digest for testing
+    - See email delivery logs and success rates
+
+BACKEND:
+16. Create database table: email_preferences (user_id, weekly_digest, streak_reminders, credit_warnings, promotional, unsubscribed_at)
+17. Create API endpoints:
+    - GET /api/email-preferences — get current user preferences
+    - PUT /api/email-preferences — update preferences
+    - GET /api/unsubscribe/:token — handle unsubscribe
+18. Generate unique unsubscribe token for each user stored in database
+
+19. Style all emails to match Selfbeat branding with logo, colors and clean layout
+20. Make sure emails render correctly on mobile email clients
+21. Test all emails before deployment
