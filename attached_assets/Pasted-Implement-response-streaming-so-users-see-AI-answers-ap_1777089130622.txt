@@ -1,0 +1,43 @@
+Implement response streaming so users see AI answers appearing in real time as they are generated, instead of waiting for the complete answer. Implement the following:
+
+STREAMING IMPLEMENTATION:
+1. Instead of waiting for the complete AI response before displaying it, stream tokens to the frontend as they arrive
+2. Each AI model's answer should appear word by word or chunk by chunk in real time
+3. Show a blinking cursor at the end of the streaming text to indicate it is still generating
+4. Each AI model streams independently — faster models appear sooner, slower ones catch up
+5. The streaming effect should feel smooth and natural, not jumpy or flickering
+
+ROUND PROGRESSION:
+6. Round 1 streams all AI answers simultaneously
+7. Only start Round 2 after ALL models have finished streaming Round 1
+8. Round 2 self-critiques also stream in real time
+9. Only show Round 3 verdict after ALL Round 2 critiques are complete
+10. Show a subtle progress indicator between rounds:
+    "Round 1 complete — preparing self-critiques..."
+    "Round 2 complete — calculating verdict..."
+
+LOADING STATE UPDATES:
+11. Update the existing loading animations to work with streaming:
+    - While streaming: show the typing animation until first token arrives
+    - Once streaming starts: switch to showing the actual streaming text
+    - When complete: show the full answer with a subtle fade completion effect
+
+PERFORMANCE:
+12. Use Server-Sent Events (SSE) or WebSockets for streaming
+13. Handle connection drops gracefully — if stream fails show the complete answer as fallback
+14. Make sure streaming works correctly on mobile devices
+15. Make sure streaming works on slow connections
+
+ERROR HANDLING:
+16. If a model fails to stream show: "This model is taking longer than expected. Retrying..."
+17. Retry failed streams up to 2 times before showing an error message
+18. Never leave the user with a blank or broken answer card
+
+CREDITS:
+19. Credits are only deducted after Round 1 streaming is complete for all models
+20. If streaming fails before completion do not deduct any credits
+21. Show credit deduction confirmation: a subtle "-1 credit" animation near the credit counter when deducted
+
+22. Make sure streaming works correctly across all browsers
+23. Test on Chrome, Safari and Firefox
+24. Style all streaming elements to match the existing website design

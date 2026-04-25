@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback, Fragment } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearch, useLocation } from "wouter";
 import { saveResult } from "@/lib/store";
 import { useLanguage } from "@/lib/language-context";
@@ -30,6 +30,8 @@ type ModelCard = {
   declined?: boolean;
   isGeneric?: boolean;
   responseTime?: number;   // seconds elapsed when round1 arrived
+  streamingAnswer?: string;
+  streamingCritique?: string;
 };
 
 type VerdictPayload = {
@@ -221,27 +223,34 @@ function ThinkingCard({ card, streamStart }: { card: ModelCard; streamStart: num
         </div>
       </CardHeader>
       <CardContent className="pt-4 flex-1">
-        <div className="space-y-2.5">
-          {[100, 88, 70, 85, 55].map((w, i) => (
-            <div
-              key={i}
-              className="h-3 rounded-full animate-pulse bg-muted/50"
-              style={{ width: `${w}%`, animationDelay: `${i * 0.12}s` }}
-            />
-          ))}
-          <div className="mt-3 flex items-center gap-2">
-            <div className="flex gap-1">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="w-1.5 h-1.5 rounded-full animate-bounce"
-                  style={{ backgroundColor: hex, animationDelay: `${i * 0.15}s` }}
-                />
-              ))}
+        {card.streamingAnswer ? (
+          <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+            {card.streamingAnswer}
+            <span className="streaming-cursor" style={{ color: hex }} />
+          </p>
+        ) : (
+          <div className="space-y-2.5">
+            {[100, 88, 70, 85, 55].map((w, i) => (
+              <div
+                key={i}
+                className="h-3 rounded-full animate-pulse bg-muted/50"
+                style={{ width: `${w}%`, animationDelay: `${i * 0.12}s` }}
+              />
+            ))}
+            <div className="mt-3 flex items-center gap-2">
+              <div className="flex gap-1">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="w-1.5 h-1.5 rounded-full animate-bounce"
+                    style={{ backgroundColor: hex, animationDelay: `${i * 0.15}s` }}
+                  />
+                ))}
+              </div>
+              <CyclingLabel messages={ROUND1_MESSAGES} color={hex} />
             </div>
-            <CyclingLabel messages={ROUND1_MESSAGES} color={hex} />
           </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -299,14 +308,24 @@ function AnsweredCard({
         </div>
         {showCritiqueSpinner && (
           <div className="rounded-xl p-3 border border-muted/30 bg-muted/10">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <div className="flex gap-1 shrink-0">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="w-1 h-1 rounded-full animate-bounce bg-current" style={{ animationDelay: `${i * 0.15}s` }} />
-                ))}
+            {card.streamingCritique ? (
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-widest mb-1.5 text-muted-foreground/70">Self-Critique</div>
+                <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                  {card.streamingCritique}
+                  <span className="streaming-cursor" style={{ color: hex }} />
+                </p>
               </div>
-              <CyclingLabel messages={ROUND2_MESSAGES} color={hex} intervalMs={2600} />
-            </div>
+            ) : (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <div className="flex gap-1 shrink-0">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="w-1 h-1 rounded-full animate-bounce bg-current" style={{ animationDelay: `${i * 0.15}s` }} />
+                  ))}
+                </div>
+                <CyclingLabel messages={ROUND2_MESSAGES} color={hex} intervalMs={2600} />
+              </div>
+            )}
           </div>
         )}
       </CardContent>
@@ -788,11 +807,41 @@ export default function StreamingResults() {
   const round2DataRef = useRef<ModelCard[]>([]);
   const verdictRef = useRef<VerdictPayload | null>(null);
   const streamControllerRef = useRef<AbortController | null>(null);
+  const tokenQueueRef = useRef<{ key: string; round: 1 | 2; text: string }[]>([]);
 
   const handleCopy = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: "Copied to clipboard", duration: 2000 });
   }, [toast]);
+
+  // RAF-based token flush — batches all queued tokens into one state update per frame
+  useEffect(() => {
+    let rafId: number;
+    const flush = () => {
+      const q = tokenQueueRef.current.splice(0);
+      if (q.length > 0) {
+        setCards((prev) => {
+          let changed = false;
+          const next = prev.map((c) => {
+            const tokens = q.filter((t) => t.key === c.key);
+            if (!tokens.length) return c;
+            changed = true;
+            let sa = c.streamingAnswer ?? "";
+            let sc = c.streamingCritique ?? "";
+            for (const t of tokens) {
+              if (t.round === 1) sa += t.text;
+              else sc += t.text;
+            }
+            return { ...c, streamingAnswer: sa, streamingCritique: sc };
+          });
+          return changed ? next : prev;
+        });
+      }
+      rafId = requestAnimationFrame(flush);
+    };
+    rafId = requestAnimationFrame(flush);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
 
   useEffect(() => {
     if (!question.trim()) {
@@ -842,6 +891,12 @@ export default function StreamingResults() {
             } catch { continue; }
 
             switch (ev) {
+              case "token": {
+                const { model: mKey, round, token } = data as { model: string; round: 1 | 2; token: string };
+                tokenQueueRef.current.push({ key: mKey, round, text: token });
+                break;
+              }
+
               case "meta":
                 if (data.limited) {
                   setIsLimited(true);

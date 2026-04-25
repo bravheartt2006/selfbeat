@@ -325,6 +325,95 @@ async function askModel(model: ModelInfo, prompt: string, maxTokens = 450) {
   });
 }
 
+async function askModelStream(
+  model: ModelInfo,
+  prompt: string,
+  onToken: (token: string) => void,
+  maxTokens = 450,
+): Promise<string> {
+  let accumulated = "";
+
+  const doStream = async (): Promise<string> => {
+    accumulated = "";
+
+    if (model.provider === "openai") {
+      const { openai } = await import("@workspace/integrations-openai-ai-server");
+      const stream = await openai.chat.completions.create({
+        model: model.routerModel,
+        messages: [{ role: "user", content: prompt }],
+        max_completion_tokens: maxTokens,
+        stream: true,
+      });
+      for await (const chunk of stream) {
+        const token = chunk.choices[0]?.delta?.content || "";
+        if (token) { accumulated += token; onToken(token); }
+      }
+      return accumulated.trim();
+    }
+
+    if (model.provider === "anthropic") {
+      const { anthropic } = await import("@workspace/integrations-anthropic-ai");
+      const stream = await anthropic.messages.create({
+        model: model.routerModel,
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: prompt }],
+        stream: true,
+      });
+      for await (const event of stream) {
+        if (event.type === "content_block_delta") {
+          const delta = event.delta as { type: string; text?: string };
+          if (delta.type === "text_delta" && delta.text) {
+            accumulated += delta.text;
+            onToken(delta.text);
+          }
+        }
+      }
+      return accumulated.trim();
+    }
+
+    if (model.provider === "gemini") {
+      const { ai } = await import("@workspace/integrations-gemini-ai");
+      const response = await (ai.models as unknown as {
+        generateContentStream: (p: { model: string; contents: string; config: { maxOutputTokens: number } }) => Promise<AsyncIterable<{ text?: string }>>;
+      }).generateContentStream({
+        model: model.routerModel,
+        contents: prompt,
+        config: { maxOutputTokens: maxTokens },
+      });
+      for await (const chunk of response) {
+        const token = chunk.text || "";
+        if (token) { accumulated += token; onToken(token); }
+      }
+      return accumulated.trim();
+    }
+
+    // OpenRouter (all remaining models)
+    const { openrouter } = await import("@workspace/integrations-openrouter-ai");
+    const stream = await openrouter.chat.completions.create({
+      model: model.routerModel,
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: maxTokens,
+      stream: true,
+    });
+    for await (const chunk of stream) {
+      const token = chunk.choices[0]?.delta?.content || "";
+      if (token) { accumulated += token; onToken(token); }
+    }
+    return accumulated.trim();
+  };
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await doStream();
+    } catch {
+      if (attempt === 1) break;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+  // Final fallback: non-streaming
+  return askModel(model, prompt, maxTokens);
+}
+
 const extractScore = (text: string, fallback: number): number => {
   // Match patterns like "score: 7.5/10", "7/10", "I give myself a 6.8", "rating: 9"
   const patterns = [
@@ -865,7 +954,15 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
 
         let hasRealAnswer = false;
         try {
-          const raw = await withTimeout(askModel(model, buildAnswerPrompt(model, question, lang), 450), 12000);
+          const raw = await withTimeout(
+            askModelStream(
+              model,
+              buildAnswerPrompt(model, question, lang),
+              (token) => emit("token", { model: model.key, round: 1, token }),
+              450,
+            ),
+            12000,
+          );
           if (raw) {
             answer = raw;
             status = "success";
@@ -948,7 +1045,12 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
           let critique = "";
           try {
             critique = await withTimeout(
-              askModel(model, buildCritiquePromptText(model, question, answer, allAnswers, lang), 300),
+              askModelStream(
+                model,
+                buildCritiquePromptText(model, question, answer, allAnswers, lang),
+                (token) => emit("token", { model: model.key, round: 2, token }),
+                300,
+              ),
               10000,
             );
           } catch {}
