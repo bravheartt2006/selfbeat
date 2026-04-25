@@ -9,6 +9,7 @@ import {
   Share2, Trophy, MessageSquareQuote, XCircle, Database, X,
   Stethoscope, AlertTriangle, Copy, ChevronRight, Zap, Clock, Hourglass, Square, Lock,
 } from "lucide-react";
+import { VotePanel } from "@/components/VotePanel";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
@@ -704,6 +705,7 @@ export default function StreamingResults() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showRound2, setShowRound2] = useState(false);
   const [isLimited, setIsLimited] = useState(false);
+  const [comparisonId, setComparisonId] = useState<string | null>(null);
 
   const streamStartRef = useRef<number>(Date.now());
   const round2DataRef = useRef<ModelCard[]>([]);
@@ -837,6 +839,7 @@ export default function StreamingResults() {
               case "done": {
                 setPhase("done");
                 const id = data.id as string;
+                setComparisonId(id);
 
                 // Limited result — show upgrade overlay, don't redirect
                 if (data.limited) {
@@ -1087,6 +1090,16 @@ export default function StreamingResults() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Voting — limited users who stay on page after round 1 */}
+      {round1AllDone && isLimited && phase === "done" && comparisonId && (
+        <VotePanel
+          comparisonId={comparisonId}
+          responses={cards
+            .filter((c) => c.cardPhase === "answered" || c.cardPhase === "critiqued")
+            .map((c) => ({ model: c.key, displayName: c.displayName, color: c.color }))}
+        />
       )}
 
       {/* Share button — limited users (round 1 done, no credits) */}

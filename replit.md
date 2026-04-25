@@ -28,6 +28,7 @@ Primary web artifact: **Selfbeat** — a production React/Vite app where users s
 - **Stripe**: Checkout via `/api/stripe/checkout` (supports `applyTrialDiscount` flag for $7.99 coupon), portal via `/api/stripe/portal`, webhook at `/api/stripe/webhook` (must come before express.json!). Coupon ID set via `STRIPE_TRIAL_DISCOUNT_COUPON` env var.
 - **User table**: `selfbeat_users` (id, email, displayName, pictureUrl, credits, stripeCustomerId, stripeSubscriptionId, hasUnlimited, unlimitedUntil, lastSignInAt, trialUsed, trialStartDate, trialEndDate, convertedAfterTrial, trialReminderSent, trialExpirySent)
 - **Fingerprint table**: `selfbeat_fingerprints` (fingerprintId, userId, seenAt)
+- **Votes table**: `selfbeat_votes` (id serial PK, userId, comparisonId UUID, votedForAi, createdAt). UNIQUE(userId, comparisonId) enforces one vote per user per comparison. Supports toggle (re-vote same = delete) and change (different model = update).
 - **Email**: Resend package installed. `artifacts/api-server/src/lib/email.ts` — 3 email templates (trial start, 24h reminder, expiry). Gracefully skips if `RESEND_API_KEY` not set (logs instead).
 
 ### Blog

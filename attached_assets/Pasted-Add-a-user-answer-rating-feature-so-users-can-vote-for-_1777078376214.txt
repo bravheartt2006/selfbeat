@@ -1,0 +1,40 @@
+Add a user answer rating feature so users can vote for their favorite AI answer. Implement the following:
+
+RATING BUTTONS:
+1. After all AI answers are displayed in Round 1, show a "Which answer do YOU prefer?" section
+2. Under each AI answer add a thumbs up button with a counter
+3. Users can only vote for ONE answer per comparison — clicking a different answer removes the previous vote
+4. Clicking the same answer again removes the vote (toggle)
+5. Show the vote count next to each thumbs up button
+6. Highlight the user's chosen answer with a subtle border or badge saying "Your pick"
+
+RESULTS DISPLAY:
+7. After voting show a percentage bar under each answer showing:
+   - What percentage of users preferred that answer
+   - Example: "64% of users preferred this answer"
+8. Show total votes: "Based on 127 user votes"
+9. If the user has not voted yet show: "Vote to see what others think"
+10. This creates curiosity and drives voting
+
+COMPARISON WITH AI VERDICT:
+11. After Round 3 verdict, show a comparison section:
+    - "AI Verdict: Claude won"
+    - "User Vote: GPT-4 won"
+    - "The crowd disagreed with the AI verdict!" or "The crowd agreed with the AI verdict!"
+    - This is highly shareable content
+
+GAMIFICATION:
+12. If user's vote matches the AI verdict show: "You agreed with Selfbeat! 🎯"
+13. If user's vote differs show: "You disagreed with Selfbeat! Interesting choice 🤔"
+14. Track user accuracy over time — show in profile: "You agreed with Selfbeat 73% of the time"
+
+BACKEND:
+15. Create database table: votes (user_id, comparison_id, voted_for_ai, created_at)
+16. Create API endpoints:
+    - POST /api/votes — submit a vote
+    - GET /api/votes/:comparison_id — get votes for a comparison
+17. Make sure one vote per user per comparison is enforced on the backend
+18. Anonymous users (not signed in) can see vote counts but cannot vote
+
+19. Style everything to match the existing website design
+20. Make sure voting works correctly on mobile devices

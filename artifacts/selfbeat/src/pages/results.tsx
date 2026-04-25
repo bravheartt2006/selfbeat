@@ -9,6 +9,8 @@ import { AlertCircle, Copy, Share2, Stethoscope, Trophy, AlertTriangle, MessageS
 import { useToast } from "@/hooks/use-toast";
 import { pickVoice, waitForVoices } from "@/lib/voices";
 import { ShareModal } from "@/components/ShareModal";
+import { VotePanel } from "@/components/VotePanel";
+import { useAppAuth } from "@/lib/auth-context";
 
 type ModelKey = "chatgpt" | "claude" | "gemini" | "deepseek" | "grok" | "mistral" | "llama" | "perplexity" | "cohere" | "qwen" | "copilot";
 
@@ -112,6 +114,7 @@ export default function Results() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { lang, t, speechLang } = useLanguage();
+  const { isSignedIn } = useAppAuth();
   const [result, setResult] = useState<ComparisonResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -680,6 +683,19 @@ export default function Results() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Voting — shown after verdict */}
+      {result.id && (
+        <VotePanel
+          comparisonId={result.id}
+          responses={sortedResponses.map((r) => ({
+            model: r.model,
+            displayName: r.displayName || getModelMeta(r.model).name,
+            color: r.color || getModelMeta(r.model).color,
+          }))}
+          aiWinnerModel={winner?.model}
+        />
+      )}
 
       {/* Model Cards — responsive grid: 1 col mobile, 2 col md, 3 col xl */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-12">
