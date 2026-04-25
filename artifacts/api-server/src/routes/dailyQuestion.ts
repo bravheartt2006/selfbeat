@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { and, count, eq } from "drizzle-orm";
-import { db, selfbeatDailyQuestionsTable, selfbeatDailyRunsTable } from "@workspace/db";
+import { db, selfbeatDailyQuestionsTable, selfbeatDailyRunsTable, selfbeatSettingsTable } from "@workspace/db";
 import { requireAuth } from "./users";
 
 const router = Router();
@@ -25,13 +25,25 @@ function getNextResetMs(): number {
 }
 
 async function getTodayQuestion() {
-  const questions = await db
-    .select()
-    .from(selfbeatDailyQuestionsTable)
-    .where(eq(selfbeatDailyQuestionsTable.isActive, true))
-    .orderBy(selfbeatDailyQuestionsTable.sortOrder, selfbeatDailyQuestionsTable.id);
+  const today = getTodayUTC();
+  const overrideKey = `qotd_override_${today}`;
+  const [questions, overrideRow] = await Promise.all([
+    db.select().from(selfbeatDailyQuestionsTable)
+      .where(eq(selfbeatDailyQuestionsTable.isActive, true))
+      .orderBy(selfbeatDailyQuestionsTable.sortOrder, selfbeatDailyQuestionsTable.id),
+    db.select().from(selfbeatSettingsTable)
+      .where(eq(selfbeatSettingsTable.key, overrideKey))
+      .limit(1),
+  ]);
 
   if (questions.length === 0) return null;
+
+  if (overrideRow.length > 0) {
+    const overrideId = parseInt(overrideRow[0].value, 10);
+    const overrideQ = questions.find((q) => q.id === overrideId);
+    if (overrideQ) return overrideQ;
+  }
+
   return questions[getDayIndex() % questions.length];
 }
 

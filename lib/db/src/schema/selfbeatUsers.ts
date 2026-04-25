@@ -19,6 +19,9 @@ export const selfbeatUsersTable = pgTable("selfbeat_users", {
   convertedAfterTrial: boolean("converted_after_trial").notNull().default(false),
   trialReminderSent: boolean("trial_reminder_sent").notNull().default(false),
   trialExpirySent: boolean("trial_expiry_sent").notNull().default(false),
+  // ── Admin controls ────────────────────────────────────────────────────────
+  isBanned: boolean("is_banned").notNull().default(false),
+  planType: text("plan_type"), // 'monthly' | 'annual' | 'team' | null
 });
 
 export type SelfbeatUser = typeof selfbeatUsersTable.$inferSelect;
