@@ -275,9 +275,15 @@ export default function AdminPage() {
               Signed in as <span className="font-mono font-medium text-foreground">{user?.email}</span>
             </p>
           )}
-          <Button variant="outline" size="sm" onClick={() => setLocation("/")}>
-            Go to Home
-          </Button>
+          <div className="flex gap-2 justify-center">
+            <Button variant="outline" size="sm" onClick={() => setLocation("/")}>
+              Go to Home
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/admin/debug")}
+              className="text-muted-foreground text-xs">
+              Debug Access
+            </Button>
+          </div>
         </div>
       </div>
     );

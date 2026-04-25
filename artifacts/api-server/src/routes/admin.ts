@@ -5,16 +5,87 @@ import { requireAuth } from "./users";
 
 const router = Router();
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "";
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
+
+// Log on startup so the server console confirms what value is loaded
+if (ADMIN_EMAIL) {
+  console.log(`[admin] ADMIN_EMAIL loaded: ${ADMIN_EMAIL.slice(0, 3)}***${ADMIN_EMAIL.slice(ADMIN_EMAIL.indexOf("@"))}`);
+} else {
+  console.warn("[admin] WARNING: ADMIN_EMAIL is not set — admin panel will be inaccessible");
+}
+
+// Resolve the authenticated user's email from req.user (Passport) or fallback
+// to a DB lookup using req.userId (set by requireAuth).  This guards against
+// cases where Passport didn't fully hydrate req.user yet the session is valid.
+async function resolveUserEmail(req: any): Promise<string | null> {
+  const passportEmail = (req.user as any)?.email as string | undefined;
+  if (passportEmail) return passportEmail.trim().toLowerCase();
+
+  const userId = req.userId as string | undefined;
+  if (!userId) return null;
+
+  try {
+    const [row] = await db
+      .select({ email: selfbeatUsersTable.email })
+      .from(selfbeatUsersTable)
+      .where(eq(selfbeatUsersTable.id, userId))
+      .limit(1);
+    return row?.email ? row.email.trim().toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
 
 async function requireAdminEmail(req: any, res: any, next: any) {
-  const user = req.user as any;
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
-  if (!ADMIN_EMAIL || user.email !== ADMIN_EMAIL) {
-    return res.status(403).json({ error: "Forbidden" });
-  }
+  if (!ADMIN_EMAIL) return res.status(403).json({ error: "Admin not configured" });
+  const email = await resolveUserEmail(req);
+  if (!email) return res.status(401).json({ error: "Unauthorized" });
+  if (email !== ADMIN_EMAIL) return res.status(403).json({ error: "Forbidden" });
   next();
 }
+
+// ── Check if current user is admin ───────────────────────────────────────────
+
+router.get("/check", requireAuth, async (req: any, res) => {
+  try {
+    const email = await resolveUserEmail(req);
+    const isAdmin = !!ADMIN_EMAIL && !!email && email === ADMIN_EMAIL;
+    console.log(`[admin] /check — resolved email: "${email}", ADMIN_EMAIL: "${ADMIN_EMAIL}", isAdmin: ${isAdmin}`);
+    res.json({ isAdmin });
+  } catch (err) {
+    console.error("[admin] /check error:", err);
+    res.status(500).json({ error: "Failed to check admin status" });
+  }
+});
+
+// ── Debug route — shows exactly what is being compared ───────────────────────
+
+router.get("/debug", requireAuth, async (req: any, res) => {
+  try {
+    const email = await resolveUserEmail(req);
+    const adminEmailConfigured = ADMIN_EMAIL || "(not set)";
+    const resolvedEmail = email || "(none)";
+    const match = !!email && !!ADMIN_EMAIL && email === ADMIN_EMAIL;
+
+    res.json({
+      loggedInEmail: resolvedEmail,
+      adminEmailConfigured,
+      match,
+      verdict: match
+        ? "ACCESS GRANTED — emails match"
+        : !ADMIN_EMAIL
+          ? "ACCESS DENIED — ADMIN_EMAIL environment variable is not set"
+          : !email
+            ? "ACCESS DENIED — could not resolve logged-in user email"
+            : `ACCESS DENIED — "${resolvedEmail}" does not match "${adminEmailConfigured}"`,
+      note: "All comparisons are case-insensitive and whitespace-trimmed",
+      passportUserEmail: (req.user as any)?.email ?? "(Passport req.user is null)",
+      sessionUserId: (req.session as any)?.userId ?? "(no session userId)",
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
 
 // ── Stats dashboard ───────────────────────────────────────────────────────────
 
@@ -37,7 +108,6 @@ router.get("/stats", requireAuth, requireAdminEmail, async (_req, res) => {
         ),
     ]);
 
-    // Total questions asked today — count from selfbeat_comparisons if exists, else null
     let questionsToday: number | null = null;
     try {
       const qRow = await db.execute(
@@ -48,7 +118,6 @@ router.get("/stats", requireAuth, requireAdminEmail, async (_req, res) => {
       questionsToday = null;
     }
 
-    // Stripe revenue — sum from selfbeat_stripe_events or estimate from users
     let totalRevenueCents: number | null = null;
     try {
       const revRow = await db.execute(
@@ -89,8 +158,7 @@ router.get("/user-search", requireAuth, requireAdminEmail, async (req: any, res)
 
     const u = users[0];
     const now = new Date();
-    const isUnlimited =
-      u.hasUnlimited && (!u.unlimitedUntil || u.unlimitedUntil > now);
+    const isUnlimited = u.hasUnlimited && (!u.unlimitedUntil || u.unlimitedUntil > now);
 
     const subscriptionStatus = isUnlimited
       ? u.unlimitedUntil
@@ -149,14 +217,6 @@ router.post("/adjust-credits", requireAuth, requireAdminEmail, async (req: any, 
     console.error("POST /admin/adjust-credits error:", err);
     res.status(500).json({ error: "Failed to adjust credits" });
   }
-});
-
-// ── Check if current user is admin ───────────────────────────────────────────
-
-router.get("/check", requireAuth, async (req: any, res) => {
-  const user = req.user as any;
-  const isAdmin = !!ADMIN_EMAIL && user?.email === ADMIN_EMAIL;
-  res.json({ isAdmin });
 });
 
 export default router;
