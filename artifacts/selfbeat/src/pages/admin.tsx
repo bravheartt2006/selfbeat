@@ -248,7 +248,7 @@ export default function AdminPage() {
 
   // ── Loading / auth guard ─────────────────────────────────────────────────────
 
-  if (!isLoaded || isAdmin === null) {
+  if (isAdmin === null) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
