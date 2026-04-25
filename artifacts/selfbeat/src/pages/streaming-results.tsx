@@ -91,6 +91,34 @@ function computeSpeedMeta(cards: ModelCard[]) {
   };
 }
 
+// ─── Cycling status label ────────────────────────────────────────────────────
+
+function CyclingLabel({ messages, color, intervalMs = 2800 }: { messages: string[]; color?: string; intervalMs?: number }) {
+  const [idx, setIdx] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    if (messages.length <= 1) return;
+    const id = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setIdx((i) => (i + 1) % messages.length);
+        setVisible(true);
+      }, 220);
+    }, intervalMs);
+    return () => clearInterval(id);
+  }, [messages.length, intervalMs]);
+
+  return (
+    <span
+      className="text-xs transition-opacity duration-200"
+      style={{ color: color ?? "inherit", opacity: visible ? 1 : 0 }}
+    >
+      {messages[idx]}
+    </span>
+  );
+}
+
 // ─── Timer badge ─────────────────────────────────────────────────────────────
 
 function TimerBadge({ responseTime, isSlow }: { responseTime: number; isSlow: boolean }) {
@@ -152,6 +180,26 @@ function SpeedStrip({ cards }: { cards: ModelCard[] }) {
 
 // ─── Thinking card ────────────────────────────────────────────────────────────
 
+const ROUND1_MESSAGES = [
+  "Thinking...",
+  "Analyzing your question...",
+  "Formulating response...",
+  "Almost ready...",
+];
+
+const ROUND2_MESSAGES = [
+  "Reading other answers...",
+  "Reconsidering...",
+  "Self-evaluating...",
+  "Being brutally honest...",
+];
+
+const VERDICT_MESSAGES = [
+  "Calculating scores...",
+  "Analyzing self-awareness...",
+  "Determining the winner...",
+];
+
 function ThinkingCard({ card, streamStart }: { card: ModelCard; streamStart: number }) {
   const hex = card.color;
   const borderTint = hexToRgba(hex, 0.2);
@@ -180,7 +228,7 @@ function ThinkingCard({ card, streamStart }: { card: ModelCard; streamStart: num
               style={{ width: `${w}%`, animationDelay: `${i * 0.12}s` }}
             />
           ))}
-          <div className="mt-3 flex items-center gap-2 text-muted-foreground">
+          <div className="mt-3 flex items-center gap-2">
             <div className="flex gap-1">
               {[0, 1, 2].map((i) => (
                 <div
@@ -190,7 +238,7 @@ function ThinkingCard({ card, streamStart }: { card: ModelCard; streamStart: num
                 />
               ))}
             </div>
-            <span className="text-xs" style={{ color: hex }}>Thinking...</span>
+            <CyclingLabel messages={ROUND1_MESSAGES} color={hex} />
           </div>
         </div>
       </CardContent>
@@ -251,12 +299,12 @@ function AnsweredCard({
         {showCritiqueSpinner && (
           <div className="rounded-xl p-3 border border-muted/30 bg-muted/10">
             <div className="flex items-center gap-2 text-muted-foreground">
-              <div className="flex gap-1">
+              <div className="flex gap-1 shrink-0">
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="w-1 h-1 rounded-full animate-bounce bg-current" style={{ animationDelay: `${i * 0.15}s` }} />
                 ))}
               </div>
-              <span className="text-[11px]">Loading self-critique...</span>
+              <CyclingLabel messages={ROUND2_MESSAGES} color={hex} intervalMs={2600} />
             </div>
           </div>
         )}
@@ -1013,7 +1061,9 @@ export default function StreamingResults() {
         <div className="mb-6 space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
-              {phase === "verdict" ? "Calculating final verdict..." : "Round 2: AIs examining each other..."}
+              {phase === "verdict"
+                ? <CyclingLabel messages={VERDICT_MESSAGES} intervalMs={2400} />
+                : "Round 2: AIs examining each other..."}
             </span>
             <span className="text-primary font-mono text-xs">{critiquedCount}/10</span>
           </div>
