@@ -643,6 +643,7 @@ export default function StreamingResults() {
 
   const params = new URLSearchParams(search);
   const question = params.get("q") ?? "";
+  const isFreeQuestion = params.get("free") === "1";
 
   const { t, lang } = useLanguage();
   const { isSignedIn } = useAppAuth();
@@ -680,7 +681,7 @@ export default function StreamingResults() {
         const response = await fetch("/api/selfbeat/comparisons/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: question.trim(), mode: "live", lang }),
+          body: JSON.stringify({ question: question.trim(), mode: "live", lang, ...(isFreeQuestion && { freeQuestion: true }) }),
           signal: controller.signal,
         });
 
@@ -716,8 +717,8 @@ export default function StreamingResults() {
               case "meta":
                 if (data.limited) {
                   setIsLimited(true);
-                } else {
-                  // Full comparison — will use 1 credit
+                } else if (!data.free) {
+                  // Full comparison using a credit (not a free demo question)
                   deductCredit();
                 }
                 break;

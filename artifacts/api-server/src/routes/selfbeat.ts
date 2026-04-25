@@ -10,6 +10,19 @@ import {
 } from "@workspace/api-zod";
 import { db, selfbeatComparisonsTable, selfbeatUsersTable } from "@workspace/db";
 
+const FREE_DEMO_QUESTIONS = new Set([
+  "which planet has the most moons and why do scientists keep changing the answer",
+  "is caffeine actually bad for you or is that a myth",
+  "what really caused the 2008 financial crisis",
+  "is social media making us more or less connected",
+  "will ai ever be truly conscious",
+  "what is the healthiest diet according to science",
+]);
+
+function normalizeFreeQuestion(q: string): string {
+  return q.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+}
+
 async function checkAndDeductCredit(userId: string): Promise<boolean> {
   const [user] = await db
     .select()
@@ -768,8 +781,15 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
     (req as any).session?.userId || (req.user as any)?.id || null;
   let isLimited = true;
   let creditDeducted = false;
+  let isFreeDemo = false;
 
-  if (userId) {
+  // Check if this is a free demo question (server-side whitelist validation)
+  const rawQuestion = typeof req.body?.question === "string" ? req.body.question : "";
+  const requestedFree = req.body?.freeQuestion === true;
+  if (requestedFree && FREE_DEMO_QUESTIONS.has(normalizeFreeQuestion(rawQuestion))) {
+    isFreeDemo = true;
+    isLimited = false;
+  } else if (userId) {
     try {
       const canProceed = await checkAndDeductCredit(userId);
       if (canProceed) {
@@ -783,7 +803,7 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
     }
   }
 
-  emit("meta", { limited: isLimited });
+  emit("meta", { limited: isLimited, free: isFreeDemo });
 
   const question = parsed.data.question.trim();
   const lang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";

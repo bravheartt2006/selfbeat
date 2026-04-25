@@ -390,11 +390,19 @@ export default function Home() {
             {exampleQuestions.map((q, i) => (
               <button
                 key={i}
-                onClick={() => { cancelCountdown(); setQuery(q); }}
-                aria-label={`Use example question: ${q}`}
+                onClick={() => {
+                  cancelCountdown();
+                  setLocation(`/stream?q=${encodeURIComponent(q)}&free=1`);
+                }}
+                aria-label={`Try free: ${q}`}
                 className={`text-left p-3.5 rounded-xl border border-border/40 bg-card/40 hover:bg-card hover:border-primary/40 hover:shadow-sm transition-all duration-150 text-sm text-muted-foreground hover:text-foreground group focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none${i >= 3 ? " hidden sm:block" : ""}`}
               >
-                <span className="line-clamp-2 leading-snug">{q}</span>
+                <div className="flex flex-col gap-2">
+                  <span className="inline-flex w-fit items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-green-500/10 text-green-500 border border-green-500/20">
+                    Free
+                  </span>
+                  <span className="line-clamp-2 leading-snug">{q}</span>
+                </div>
               </button>
             ))}
           </div>
