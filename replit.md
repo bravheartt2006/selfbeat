@@ -29,6 +29,11 @@ Primary web artifact: **Selfbeat** — a production React/Vite app where users s
 - **User table**: `selfbeat_users` (id, email, displayName, pictureUrl, credits, stripeCustomerId, stripeSubscriptionId, hasUnlimited, unlimitedUntil, lastSignInAt, trialUsed, trialStartDate, trialEndDate, convertedAfterTrial, trialReminderSent, trialExpirySent)
 - **Fingerprint table**: `selfbeat_fingerprints` (fingerprintId, userId, seenAt)
 - **Votes table**: `selfbeat_votes` (id serial PK, userId, comparisonId UUID, votedForAi, createdAt). UNIQUE(userId, comparisonId) enforces one vote per user per comparison. Supports toggle (re-vote same = delete) and change (different model = update).
+- **Daily questions table**: `selfbeat_daily_questions` (id serial PK, question, isActive bool, sortOrder int, addedAt). 30 pre-seeded debate questions. Question selected deterministically by daysSinceEpoch(2025-01-01) % activeCount.
+- **Daily runs table**: `selfbeat_daily_runs` (id serial PK, userId, questionId, runDate text YYYY-MM-DD UTC, createdAt). UNIQUE(userId, runDate) — one free QOTD run per user per day.
+- **QOTD API**: `GET /api/daily-question` (public, returns question + runCount + userHasRunToday + nextResetMs), `POST /api/daily-question/run` (auth required, marks run + returns ok|alreadyRun). runCount has +120 offset for social proof.
+- **Admin API**: `GET|POST|PATCH /api/admin/daily-questions` protected by `x-admin-key` header (default: `selfbeat-admin-2025`, override with `ADMIN_KEY` env var).
+- **Admin UI**: `/admin/qotd` page — password-protected (stores key in localStorage), shows today/tomorrow question, lists all questions with activate/deactivate, add new question form.
 - **Email**: Resend package installed. `artifacts/api-server/src/lib/email.ts` — 3 email templates (trial start, 24h reminder, expiry). Gracefully skips if `RESEND_API_KEY` not set (logs instead).
 
 ### Blog

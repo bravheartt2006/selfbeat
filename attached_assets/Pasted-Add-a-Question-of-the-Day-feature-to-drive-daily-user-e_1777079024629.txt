@@ -1,0 +1,70 @@
+Add a "Question of the Day" feature to drive daily user engagement. Implement the following:
+
+DISPLAY ON HOME PAGE:
+1. Show a "Question of the Day" card prominently on the home page
+2. The card should have:
+   - A small "Question of the Day" label with a calendar or star icon
+   - The featured question in large readable text
+   - A "See Today's Battle" button that submits the question
+   - A countdown timer showing "Resets in: 14h 23m 07s" until the next question
+3. The question of the day is FREE — does not consume any credits
+4. Each user can only run the question of the day once per day for free
+5. Show a small "Free today" badge on the card
+
+QUESTION SCHEDULE:
+6. Start with these pre-loaded questions rotating daily:
+   - "Is artificial intelligence a threat or a tool?"
+   - "What is the meaning of consciousness?"
+   - "Will humans ever achieve immortality?"
+   - "Is democracy the best form of government?"
+   - "Should AI have legal rights?"
+   - "Is climate change reversible?"
+   - "What is the biggest threat to humanity right now?"
+   - "Will we ever make contact with alien life?"
+   - "Is social media doing more harm than good?"
+   - "Should there be limits on free speech?"
+   - "Is capitalism the best economic system?"
+   - "What will the world look like in 100 years?"
+   - "Is it ethical to eat meat?"
+   - "Should space exploration be a priority over solving earth's problems?"
+   - "Will quantum computing change everything?"
+   - "Is privacy dead in the digital age?"
+   - "Should genetic engineering of humans be allowed?"
+   - "Is nuclear energy the solution to climate change?"
+   - "Will robots replace most human jobs?"
+   - "Is the internet making us smarter or dumber?"
+   - "Should billionaires exist?"
+   - "Is remote work better than office work?"
+   - "Will virtual reality replace real-world experiences?"
+   - "Is it possible to achieve world peace?"
+   - "Should voting be mandatory?"
+   - "Is homework beneficial for students?"
+   - "Should all drugs be decriminalized?"
+   - "Is the moon landing the greatest human achievement?"
+   - "Should all education be free?"
+   - "Is eternal life desirable?"
+7. Cycle through questions based on the current date so everyone sees the same question on the same day
+8. After all questions are used start cycling from the beginning
+
+ENGAGEMENT:
+9. Show how many people ran today's question: "847 people asked this today"
+10. After completing the question of the day show:
+    "Come back tomorrow for a new question! Or ask your own for 1 credit."
+11. Send a daily push notification or email to subscribed users:
+    Subject: "Today's Selfbeat Question: Is AI a threat or a tool?"
+    Message: "See how 11 AIs answer today's question — and watch them judge themselves. It's free today only."
+
+BACKEND:
+12. Create database table: daily_questions (id, question, date_used)
+13. Create API endpoint: GET /api/daily-question — returns today's question
+14. Create database table: daily_question_runs (user_id, date, completed)
+15. Track who has already run today's question
+16. Reset daily runs at midnight UTC every day
+17. Create API endpoint: POST /api/daily-question/run — marks as completed for today
+
+ADMIN:
+18. Add ability to manually set tomorrow's question from a simple admin panel
+19. Allow adding new questions to the rotation
+
+20. Style the Question of the Day card to stand out on the home page
+21. Make sure it works correctly on mobile devices

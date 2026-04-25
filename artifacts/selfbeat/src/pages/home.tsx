@@ -6,6 +6,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { ArrowRight, Mic, MicOff, X } from "lucide-react";
 import { SelfbeatLogo } from "@/components/SelfbeatLogo";
 import StatsBar from "@/components/StatsBar";
+import QuestionOfTheDay from "@/components/QuestionOfTheDay";
 import { useLanguage } from "@/lib/language-context";
 import { useAppAuth } from "@/lib/auth-context";
 import { useCredits } from "@/lib/credits-context";
@@ -409,6 +410,9 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      {/* Question of the Day */}
+      {!query.trim() && <QuestionOfTheDay />}
 
       {/* Live usage stats */}
       <StatsBar />

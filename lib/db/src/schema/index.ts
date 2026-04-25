@@ -25,3 +25,5 @@ export * from "./selfbeatFingerprints";
 export * from "./selfbeatLoginLog";
 export * from "./selfbeatSettings";
 export * from "./selfbeatVotes";
+export * from "./selfbeatDailyQuestions";
+export * from "./selfbeatDailyRuns";
