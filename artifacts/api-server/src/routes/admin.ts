@@ -29,20 +29,25 @@ async function getCurrentUser(req: any) {
 router.get("/check", async (req: any, res) => {
   try {
     const user = await getCurrentUser(req);
+    const adminEmail = process.env.ADMIN_EMAIL;
 
     // Step 2: Log what email the visiting user has
     console.log("Visiting user email:", user?.email);
 
     // Step 3: Log the exact comparison result
-    console.log("Is admin?", user?.email === process.env.ADMIN_EMAIL);
+    console.log("Is admin?", user?.email === adminEmail);
 
-    const isAdmin =
-      !!user &&
-      !!user.email &&
-      !!process.env.ADMIN_EMAIL &&
-      user.email === process.env.ADMIN_EMAIL;
+    if (!user) {
+      return res.json({ isAdmin: false, reason: "not_signed_in", userEmail: null });
+    }
 
-    res.json({ isAdmin });
+    const isAdmin = !!user.email && !!adminEmail && user.email === adminEmail;
+
+    res.json({
+      isAdmin,
+      reason: isAdmin ? "granted" : "wrong_email",
+      userEmail: user.email ?? null,
+    });
   } catch (err) {
     console.error("[admin] /check error:", err);
     res.status(500).json({ error: "Internal server error" });

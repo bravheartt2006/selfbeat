@@ -89,10 +89,11 @@ function StatCard({
 }
 
 export default function AdminPage() {
-  const { user, isLoaded, isSignedIn } = useAppAuth();
+  const { user } = useAppAuth();
   const [, setLocation] = useLocation();
   const [isAdmin, setIsAdmin] = useState<boolean | "denied" | null>(null);
-  const [accessDeniedReason, setAccessDeniedReason] = useState("");
+  const [deniedReason, setDeniedReason] = useState<"not_signed_in" | "wrong_email" | "error">("error");
+  const [serverUserEmail, setServerUserEmail] = useState<string | null>(null);
 
   // Stats
   const [stats, setStats] = useState<Stats | null>(null);
@@ -113,32 +114,28 @@ export default function AdminPage() {
   const [adjusting, setAdjusting] = useState(false);
   const [creditMsg, setCreditMsg] = useState("");
 
-  // ── Auth check ──────────────────────────────────────────────────────────────
+  // ── Auth check — call backend directly, no dependency on auth context ────────
+
+  const runAdminCheck = useCallback(async () => {
+    try {
+      const r = await fetch("/api/admin/check", { credentials: "include" });
+      const d = await r.json();
+      setServerUserEmail(d.userEmail ?? null);
+      if (d.isAdmin) {
+        setIsAdmin(true);
+      } else {
+        setIsAdmin("denied");
+        setDeniedReason(d.reason ?? "error");
+      }
+    } catch {
+      setIsAdmin("denied");
+      setDeniedReason("error");
+    }
+  }, []);
 
   useEffect(() => {
-    if (!isLoaded) return;
-    if (!isSignedIn) {
-      setIsAdmin("denied");
-      setAccessDeniedReason("You must be signed in to access the admin panel.");
-      return;
-    }
-    fetch("/api/admin/check", { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.isAdmin) {
-          setIsAdmin("denied");
-          setAccessDeniedReason(
-            `${user?.email ?? "This account"} does not have admin privileges.`
-          );
-        } else {
-          setIsAdmin(true);
-        }
-      })
-      .catch(() => {
-        setIsAdmin("denied");
-        setAccessDeniedReason("Could not verify admin access. Please try again.");
-      });
-  }, [isLoaded, isSignedIn, user, setLocation]);
+    runAdminCheck();
+  }, [runAdminCheck]);
 
   // ── Data loaders ────────────────────────────────────────────────────────────
 
@@ -260,6 +257,7 @@ export default function AdminPage() {
   }
 
   if (isAdmin === "denied") {
+    const notSignedIn = deniedReason === "not_signed_in";
     return (
       <div className="flex items-center justify-center min-h-[60vh] px-4">
         <div className="max-w-md w-full border border-destructive/30 bg-destructive/5 rounded-2xl p-8 text-center space-y-4">
@@ -268,20 +266,61 @@ export default function AdminPage() {
               <Shield className="h-6 w-6 text-destructive" />
             </div>
           </div>
-          <h1 className="text-xl font-serif font-bold">Access Denied</h1>
-          <p className="text-sm text-muted-foreground leading-relaxed">{accessDeniedReason}</p>
-          {isSignedIn && (
-            <p className="text-xs text-muted-foreground">
-              Signed in as <span className="font-mono font-medium text-foreground">{user?.email}</span>
+          <h1 className="text-xl font-serif font-bold">
+            {notSignedIn ? "Sign In Required" : "Access Denied"}
+          </h1>
+
+          {notSignedIn ? (
+            <p className="text-sm text-muted-foreground">
+              You need to sign in with the admin email to access this page.
+            </p>
+          ) : deniedReason === "wrong_email" ? (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                This account does not have admin access.
+              </p>
+              <div className="text-xs bg-muted/30 rounded-lg px-3 py-2 font-mono text-left space-y-1">
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Your email:</span>
+                  <span className="text-foreground">{serverUserEmail ?? user?.email ?? "unknown"}</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Could not verify admin access. Please try again.
             </p>
           )}
-          <div className="flex gap-2 justify-center">
-            <Button variant="outline" size="sm" onClick={() => setLocation("/")}>
+
+          <div className="flex gap-2 justify-center flex-wrap">
+            {notSignedIn && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  const w = window.open("/api/auth/google", "_blank", "width=500,height=600");
+                  const timer = setInterval(() => {
+                    if (w?.closed) {
+                      clearInterval(timer);
+                      runAdminCheck();
+                    }
+                  }, 500);
+                }}
+              >
+                Sign In with Google
+              </Button>
+            )}
+            {!notSignedIn && (
+              <Button variant="outline" size="sm" onClick={runAdminCheck}>
+                Retry
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/")}
+              className="text-muted-foreground">
               Go to Home
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setLocation("/admin/debug")}
               className="text-muted-foreground text-xs">
-              Debug Access
+              Debug
             </Button>
           </div>
         </div>
