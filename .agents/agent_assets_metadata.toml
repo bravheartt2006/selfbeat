@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "0CtDu60cQfWckHbhwUVU0"
+uri = "file://artifacts/selfbeat/public/selfbeat-logo.svg"
+type = "image"
+title = "Selfbeat Logo (Brain + Gavel) — Animated SVG"
