@@ -7,6 +7,36 @@ const router = Router();
 
 const TRIAL_DISCOUNT_COUPON_ID = process.env.STRIPE_TRIAL_DISCOUNT_COUPON || "";
 
+// List price IDs for all active plans (used by the frontend pricing page)
+router.get("/price-ids", async (_req, res) => {
+  try {
+    const { getUncachableStripeClient } = await import("../stripeClient");
+    const stripe = await getUncachableStripeClient();
+
+    const { data: products } = await stripe.products.list({ active: true, limit: 100 });
+    const priceIds: Record<string, string> = {};
+
+    for (const product of products) {
+      const planId = product.metadata?.plan_id;
+      if (!planId) continue;
+
+      const { data: prices } = await stripe.prices.list({
+        product: product.id,
+        active: true,
+        limit: 1,
+      });
+
+      if (prices.length > 0) {
+        priceIds[planId] = prices[0].id;
+      }
+    }
+
+    return res.json(priceIds);
+  } catch {
+    return res.json({});
+  }
+});
+
 // Create checkout session
 router.post("/checkout", requireAuth, async (req: any, res) => {
   const { userId } = req;
@@ -46,7 +76,6 @@ router.post("/checkout", requireAuth, async (req: any, res) => {
     const price = await stripe.prices.retrieve(priceId);
     const mode = price.type === "recurring" ? "subscription" : "payment";
 
-    // Determine if user qualifies for post-trial welcome back discount
     const now = new Date();
     const isWithin24hOfTrialExpiry =
       user?.trialUsed &&
@@ -64,7 +93,7 @@ router.post("/checkout", requireAuth, async (req: any, res) => {
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
       mode,
-      success_url: `${base}/selfbeat/pricing?success=1`,
+      success_url: `${base}/selfbeat/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${base}/selfbeat/pricing?canceled=1`,
       metadata: { userId },
     };
@@ -84,7 +113,6 @@ router.post("/checkout", requireAuth, async (req: any, res) => {
 
     return res.json({ url: session.url });
   } catch (err: any) {
-    console.error("Stripe checkout error:", err);
     return res.status(500).json({ error: err.message || "Checkout failed" });
   }
 });

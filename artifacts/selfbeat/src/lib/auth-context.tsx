@@ -26,6 +26,10 @@ export type AppUser = {
   trialExpiredRecently: boolean;
   // Admin
   isAdmin: boolean;
+  // Subscription
+  planType: "monthly" | "annual" | "team" | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
 };
 
 type AuthState = {

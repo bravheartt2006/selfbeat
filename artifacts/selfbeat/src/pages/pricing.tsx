@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAppAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useCredits } from "@/lib/credits-context";
@@ -109,13 +109,35 @@ const PLANS: Plan[] = [
 
 export default function PricingPage() {
   const { t } = useLanguage();
-  const { isSignedIn } = useAppAuth();
+  const { isSignedIn, user } = useAppAuth();
   const { credits, isUnlimited, trialUsed, isOnActiveTrial, trialExpiredRecently, startTrial } = useCredits();
   const [startingTrial, setStartingTrial] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const [priceIdMap, setPriceIdMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    fetch("/api/stripe/price-ids")
+      .then((r) => r.json())
+      .then((data: Record<string, string>) => setPriceIdMap(data))
+      .catch(() => {});
+  }, []);
+
+  const currentPlanType = user?.planType ?? null;
+
+  function getPlanTypeForId(planId: string): string | null {
+    if (planId === "pro_monthly") return "monthly";
+    if (planId === "pro_annual") return "annual";
+    if (planId === "team") return "team";
+    return null;
+  }
+
+  function isCurrentPlan(planId: string): boolean {
+    if (!isSignedIn || !isUnlimited) return false;
+    return getPlanTypeForId(planId) === currentPlanType;
+  }
 
   const urlParams = new URLSearchParams(window.location.search);
   const success = urlParams.get("success") === "1";
@@ -126,6 +148,7 @@ export default function PricingPage() {
       navigate(`${base}/sign-in`);
       return;
     }
+    const resolvedPriceId = priceIdMap[plan.id] || plan.priceId;
     setLoading(plan.id);
     try {
       const res = await fetch("/api/stripe/checkout", {
@@ -133,7 +156,7 @@ export default function PricingPage() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          priceId: plan.priceId,
+          priceId: resolvedPriceId,
           applyTrialDiscount: trialExpiredRecently && plan.id === "pro_monthly",
         }),
       });
@@ -290,18 +313,20 @@ export default function PricingPage() {
             }`}
           >
             {/* Badge */}
-            {plan.badge && (
+            {(isCurrentPlan(plan.id) || plan.badge) && (
               <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-10">
                 <span
                   className={`text-xs font-bold px-3.5 py-1 rounded-full whitespace-nowrap ${
-                    plan.badgeStyle === "gold"
+                    isCurrentPlan(plan.id)
+                      ? "bg-green-500 text-white"
+                      : plan.badgeStyle === "gold"
                       ? "bg-amber-400 text-amber-950"
                       : plan.badgeStyle === "blue"
                       ? "bg-blue-600 text-white"
                       : "bg-primary text-primary-foreground"
                   }`}
                 >
-                  {plan.badge}
+                  {isCurrentPlan(plan.id) ? "Current Plan" : plan.badge}
                 </span>
               </div>
             )}
@@ -366,18 +391,28 @@ export default function PricingPage() {
               </ul>
 
               {/* CTA */}
-              <Button
-                onClick={() => handlePlan(plan)}
-                disabled={loading === plan.id}
-                className={`w-full font-semibold ${
-                  plan.highlight
-                    ? "bg-amber-400 hover:bg-amber-300 text-amber-950 border-0"
-                    : ""
-                }`}
-                variant={plan.highlight ? "default" : "outline"}
-              >
-                {loading === plan.id ? "Loading..." : plan.cta}
-              </Button>
+              {isCurrentPlan(plan.id) ? (
+                <Button
+                  onClick={handlePortal}
+                  variant="outline"
+                  className="w-full font-semibold"
+                >
+                  Manage Subscription
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => handlePlan(plan)}
+                  disabled={loading === plan.id}
+                  className={`w-full font-semibold ${
+                    plan.highlight
+                      ? "bg-amber-400 hover:bg-amber-300 text-amber-950 border-0"
+                      : ""
+                  }`}
+                  variant={plan.highlight ? "default" : "outline"}
+                >
+                  {loading === plan.id ? "Loading..." : plan.cta}
+                </Button>
+              )}
             </div>
           </div>
         ))}

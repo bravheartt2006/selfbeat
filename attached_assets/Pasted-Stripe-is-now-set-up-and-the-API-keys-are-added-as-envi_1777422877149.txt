@@ -1,0 +1,61 @@
+Stripe is now set up and the API keys are added as environment variables STRIPE_PUBLISHABLE_KEY and STRIPE_SECRET_KEY. Please integrate Stripe into Selfbeat with the following plans:
+
+1. Starter Credits: $4.99 one-time payment — gives user 25 credits instantly after payment
+2. Pro Monthly: $9.99/month recurring subscription — gives user unlimited comparisons
+3. Pro Annual: $79/year recurring subscription — gives user unlimited comparisons
+4. Team Plan: $39/month recurring subscription — gives up to 5 team members unlimited comparisons
+
+Implementation requirements:
+
+CHECKOUT:
+1. When user clicks any plan button, redirect to Stripe Checkout
+2. Use Stripe hosted checkout page for security
+3. After successful payment redirect to selfbeat.ai/success
+4. After cancelled payment redirect back to pricing page
+5. Create a success page at /success that says "Payment successful! Your account has been upgraded."
+
+WEBHOOKS:
+6. Set up a Stripe webhook endpoint at /api/stripe/webhook
+7. Listen for these events:
+   - checkout.session.completed — payment successful
+   - customer.subscription.created — new subscription
+   - customer.subscription.deleted — subscription cancelled
+   - invoice.payment_failed — payment failed
+8. When checkout.session.completed fires:
+   - For one-time payment: add 25 credits to user account
+   - For subscription: set user plan to Pro or Team in database
+9. When subscription cancelled: revert user to free plan
+10. When payment failed: send email to user notifying them
+
+STRIPE PRODUCTS:
+11. Create these products in Stripe:
+    - "Selfbeat Starter Credits" — $4.99 one-time
+    - "Selfbeat Pro Monthly" — $9.99/month
+    - "Selfbeat Pro Annual" — $79/year
+    - "Selfbeat Team Plan" — $39/month
+
+CUSTOMER PORTAL:
+12. Set up Stripe Customer Portal so users can:
+    - Cancel their subscription
+    - Update payment method
+    - View billing history
+13. Add a "Manage Subscription" button in user profile that opens the Stripe Customer Portal
+
+DATABASE:
+14. Add these columns to users table if not already there:
+    - stripe_customer_id
+    - subscription_status (free, starter, pro, team)
+    - subscription_end_date
+    - is_unlimited (boolean)
+
+PRICING PAGE:
+15. Make sure all plan buttons on the pricing page are connected to Stripe Checkout
+16. Show "Current Plan" badge on the user's active plan
+17. Show "Upgrade" or "Subscribe" buttons on other plans
+
+ENVIRONMENT VARIABLES NEEDED:
+18. Add STRIPE_WEBHOOK_SECRET to environment variables after setting up the webhook
+19. Use STRIPE_PUBLISHABLE_KEY for frontend
+20. Use STRIPE_SECRET_KEY for backend
+
+Make sure all Stripe operations are secure and never expose the secret key to the frontend.

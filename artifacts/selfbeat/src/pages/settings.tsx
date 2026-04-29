@@ -21,12 +21,16 @@ import {
   Send,
   ChevronDown,
   AlertCircle,
+  CreditCard,
+  Zap,
+  ExternalLink,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAppAuth } from "@/lib/auth-context";
+import { useCredits } from "@/lib/credits-context";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -89,7 +93,26 @@ const APP_URL = typeof window !== "undefined"
 
 export default function SettingsPage() {
   const { user, isSignedIn, isLoaded } = useAppAuth();
+  const { isUnlimited, credits } = useCredits();
   const [, setLocation] = useLocation();
+
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  const handlePortal = useCallback(async () => {
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/stripe/portal", {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json() as { url?: string };
+      if (data.url) window.location.href = data.url;
+    } catch {
+      // silently ignore
+    } finally {
+      setPortalLoading(false);
+    }
+  }, []);
 
   // Email prefs
   const [prefs, setPrefs] = useState<EmailPrefs | null>(null);
@@ -299,6 +322,76 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
+
+      {/* ── PLAN & BILLING SECTION ───────────────────────────────────────────────── */}
+      <section>
+        <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4 flex items-center gap-2">
+          <CreditCard className="h-4 w-4" />
+          Plan &amp; Billing
+        </h2>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-4">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-muted/60 shrink-0">
+                {isUnlimited ? (
+                  <Zap className="h-5 w-5 text-violet-400" />
+                ) : (
+                  <CreditCard className="h-5 w-5 text-muted-foreground" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                {isUnlimited && user?.planType ? (
+                  <>
+                    <p className="font-semibold text-foreground capitalize">
+                      {user.planType === "monthly"
+                        ? "Pro Monthly"
+                        : user.planType === "annual"
+                        ? "Pro Annual"
+                        : user.planType === "team"
+                        ? "Team Plan"
+                        : "Pro"} &mdash; Active
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Unlimited AI comparisons, self-critiques, and the full verdict.
+                    </p>
+                    <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={handlePortal}
+                        disabled={portalLoading}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        {portalLoading ? "Opening..." : "Manage Subscription"}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold text-foreground">Free Plan</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      {credits} credit{credits !== 1 ? "s" : ""} remaining.{" "}
+                      Upgrade to unlock unlimited comparisons.
+                    </p>
+                    <div className="mt-4">
+                      <Button
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => setLocation("/pricing")}
+                      >
+                        <Zap className="h-3.5 w-3.5" />
+                        Upgrade plan
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
 
       {/* ── REFERRAL SECTION ──────────────────────────────────────────────────────── */}
       <section>
