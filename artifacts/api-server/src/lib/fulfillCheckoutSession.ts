@@ -14,9 +14,21 @@ export async function fulfillCheckoutSession(
   session: Stripe.Checkout.Session,
   stripe: Stripe
 ): Promise<{ alreadyProcessed: boolean; creditsAdded: number }> {
+  logger.info(
+    {
+      sessionId: session.id,
+      mode: session.mode,
+      paymentStatus: session.payment_status,
+      status: session.status,
+      metadataUserId: session.metadata?.userId,
+      customerEmail: (session as any).customer_details?.email ?? null,
+    },
+    "fulfillCheckoutSession: received session"
+  );
+
   const userId = session.metadata?.userId;
   if (!userId) {
-    logger.warn({ sessionId: session.id }, "fulfillCheckoutSession: no userId in metadata");
+    logger.error({ sessionId: session.id }, "fulfillCheckoutSession: no userId in session metadata — cannot credit");
     return { alreadyProcessed: false, creditsAdded: 0 };
   }
 
@@ -26,36 +38,54 @@ export async function fulfillCheckoutSession(
     .where(eq(selfbeatUsersTable.id, userId))
     .limit(1);
 
+  logger.info(
+    {
+      userId,
+      sessionId: session.id,
+      userFound: !!user,
+      currentCredits: user?.credits ?? null,
+      stripeLastSessionId: user?.stripeLastSessionId ?? null,
+    },
+    "fulfillCheckoutSession: user lookup result"
+  );
+
   if (!user) {
-    logger.warn({ userId, sessionId: session.id }, "fulfillCheckoutSession: user not found");
+    logger.error({ userId, sessionId: session.id }, "fulfillCheckoutSession: user NOT FOUND in database");
     return { alreadyProcessed: false, creditsAdded: 0 };
   }
 
   if (user.stripeLastSessionId === session.id) {
-    logger.info({ userId, sessionId: session.id }, "fulfillCheckoutSession: already processed, skipping");
+    logger.info({ userId, sessionId: session.id, credits: user.credits }, "fulfillCheckoutSession: already processed, skipping");
     return { alreadyProcessed: true, creditsAdded: 0 };
   }
 
   if (session.payment_status !== "paid" && session.status !== "complete") {
-    logger.warn({ userId, sessionId: session.id, paymentStatus: session.payment_status }, "fulfillCheckoutSession: session not paid");
+    logger.error(
+      { userId, sessionId: session.id, paymentStatus: session.payment_status, status: session.status },
+      "fulfillCheckoutSession: session is NOT paid — refusing to credit"
+    );
     return { alreadyProcessed: false, creditsAdded: 0 };
   }
 
+  logger.info({ userId, sessionId: session.id }, "fulfillCheckoutSession: marking session as processed");
   await db
     .update(selfbeatUsersTable)
     .set({ stripeLastSessionId: session.id })
     .where(eq(selfbeatUsersTable.id, userId));
 
   if (session.mode === "payment") {
-    await db
+    logger.info({ userId, sessionId: session.id, creditsToAdd: 25 }, "fulfillCheckoutSession: adding 25 credits now");
+    const updateResult = await db
       .update(selfbeatUsersTable)
       .set({ credits: sql`${selfbeatUsersTable.credits} + 25` })
-      .where(eq(selfbeatUsersTable.id, userId));
-    logger.info({ userId, sessionId: session.id }, "fulfillCheckoutSession: added 25 credits");
+      .where(eq(selfbeatUsersTable.id, userId))
+      .returning({ newCredits: selfbeatUsersTable.credits });
+    logger.info({ userId, sessionId: session.id, updateResult }, "fulfillCheckoutSession: credit update complete");
     return { alreadyProcessed: false, creditsAdded: 25 };
   }
 
   if (session.mode === "subscription" && session.subscription) {
+    logger.info({ userId, sessionId: session.id, subscription: session.subscription }, "fulfillCheckoutSession: activating subscription");
     const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
     const priceId = subscription.items.data[0]?.price.id;
     const price = await stripe.prices.retrieve(priceId);
@@ -71,7 +101,9 @@ export async function fulfillCheckoutSession(
       })
       .where(eq(selfbeatUsersTable.id, userId));
     logger.info({ userId, sessionId: session.id, planType }, "fulfillCheckoutSession: subscription activated");
+    return { alreadyProcessed: false, creditsAdded: 0 };
   }
 
+  logger.warn({ userId, sessionId: session.id, mode: session.mode }, "fulfillCheckoutSession: unhandled session mode");
   return { alreadyProcessed: false, creditsAdded: 0 };
 }

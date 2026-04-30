@@ -118,12 +118,13 @@ router.post("/checkout", requireAuth, async (req: any, res) => {
 });
 
 // Verify a completed Stripe checkout session and apply fulfillment (credits / subscription).
-// Called directly from the success page so credits are applied immediately without relying on webhooks.
-router.post("/verify-session", requireAuth, async (req: any, res) => {
-  const { userId } = req;
+// Called directly from the success page. Does NOT require a session cookie — the session_id
+// itself is a secret Stripe token, and the userId comes from server-set checkout metadata.
+router.post("/verify-session", async (req: any, res) => {
   const { sessionId } = req.body as { sessionId?: string };
 
   if (!sessionId) return res.status(400).json({ error: "sessionId is required" });
+  if (!sessionId.startsWith("cs_")) return res.status(400).json({ error: "Invalid session ID format" });
 
   try {
     const { getUncachableStripeClient } = await import("../stripeClient");
@@ -132,19 +133,17 @@ router.post("/verify-session", requireAuth, async (req: any, res) => {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
     const sessionUserId = session.metadata?.userId;
-    if (sessionUserId !== userId) {
-      return res.status(403).json({ error: "Session does not belong to this user" });
+    if (!sessionUserId) {
+      return res.status(400).json({ error: "Session has no associated user" });
     }
 
     const { fulfillCheckoutSession } = await import("../lib/fulfillCheckoutSession");
     const result = await fulfillCheckoutSession(session, stripe);
 
-    const { db, selfbeatUsersTable } = await import("@workspace/db");
-    const { eq } = await import("drizzle-orm");
     const [user] = await db
       .select()
       .from(selfbeatUsersTable)
-      .where(eq(selfbeatUsersTable.id, userId))
+      .where(eq(selfbeatUsersTable.id, sessionUserId))
       .limit(1);
 
     return res.json({
