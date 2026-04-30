@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useSearch } from "wouter";
+import { useLocation } from "wouter";
 import { CheckCircle2, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCredits } from "@/lib/credits-context";
@@ -10,9 +10,9 @@ export default function SuccessPage() {
   const [, navigate] = useLocation();
   const { refresh } = useCredits();
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-  const search = useSearch();
-  const params = new URLSearchParams(search);
-  const sessionId = params.get("session_id");
+  // Use window.location.search directly — wouter's useSearch() can drop query
+  // params when a base path is configured, so this is the safest approach.
+  const sessionId = new URLSearchParams(window.location.search).get("session_id");
 
   const [state, setState] = useState<VerifyState>("loading");
   const [creditsAdded, setCreditsAdded] = useState(0);

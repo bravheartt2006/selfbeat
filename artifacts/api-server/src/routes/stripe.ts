@@ -154,6 +154,8 @@ router.post("/verify-session", async (req: any, res) => {
       planType: user?.planType ?? null,
     });
   } catch (err: any) {
+    const { logger } = await import("../lib/logger");
+    logger.error({ err: err.message, sessionId }, "verify-session failed");
     return res.status(500).json({ error: err.message || "Verification failed" });
   }
 });
