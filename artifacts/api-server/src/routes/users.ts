@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 import {
   db,
   selfbeatUsersTable,
   selfbeatFingerprintsTable,
+  selfbeatUserHistoryTable,
 } from "@workspace/db";
 import { apiRateLimiter } from "../middlewares/rateLimiter";
 import { sendTrialReminderEmail, sendTrialExpiryEmail } from "../lib/email";
@@ -161,5 +162,41 @@ router.get(
     }
   }
 );
+
+// Get current user's comparison history
+// Free users: last 5 entries  |  Pro/unlimited users: last 50
+router.get("/me/history", requireAuth, apiRateLimiter, async (req: any, res) => {
+  const { userId } = req;
+  try {
+    const userRows = await db
+      .select({ hasUnlimited: selfbeatUsersTable.hasUnlimited, planType: selfbeatUsersTable.planType })
+      .from(selfbeatUsersTable)
+      .where(eq(selfbeatUsersTable.id, userId))
+      .limit(1);
+
+    const isPro = userRows[0]?.hasUnlimited || !!userRows[0]?.planType;
+    const limit = isPro ? 50 : 5;
+
+    const rows = await db
+      .select()
+      .from(selfbeatUserHistoryTable)
+      .where(eq(selfbeatUserHistoryTable.userId, userId))
+      .orderBy(desc(selfbeatUserHistoryTable.createdAt))
+      .limit(limit + 1); // fetch one extra to know if there's more
+
+    const hasMore = rows.length > limit;
+    const history = rows.slice(0, limit).map((r) => ({
+      id: r.id,
+      comparisonId: r.comparisonId,
+      question: r.question,
+      winner: r.winner,
+      createdAt: r.createdAt,
+    }));
+
+    return res.json({ history, isPro, hasMore });
+  } catch {
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 export default router;

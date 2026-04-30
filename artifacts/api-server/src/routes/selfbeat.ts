@@ -8,7 +8,7 @@ import {
   GetSelfbeatComparisonParams,
   GetSelfbeatComparisonResponse,
 } from "@workspace/api-zod";
-import { db, selfbeatComparisonsTable, selfbeatUsersTable } from "@workspace/db";
+import { db, selfbeatComparisonsTable, selfbeatUsersTable, selfbeatUserHistoryTable } from "@workspace/db";
 import { handleFirstQuestionReferral } from "./referral";
 
 const FREE_DEMO_QUESTIONS = new Set([
@@ -939,6 +939,17 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
         emit("verdict", { verdictDetails: r.verdictDetails, isMedical: r.isMedical, physicianNote: r.physicianNote, verdict: r.verdict });
       }
       emit("done", { id: r.id, limited: isLimited });
+      // Record history for cached results too (fire-and-forget)
+      if (userId && !isLimited) {
+        db.insert(selfbeatUserHistoryTable)
+          .values({
+            userId,
+            comparisonId: r.id as any,
+            question,
+            winner: r.verdictDetails?.overallWinner ?? null,
+          })
+          .catch(() => {});
+      }
       res.end();
       return;
     }
@@ -1139,6 +1150,18 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
     try {
       await db.insert(selfbeatComparisonsTable).values({ id, questionKey, question, result: fullResult });
     } catch {}
+
+    // Record to user history (fire-and-forget)
+    if (userId) {
+      db.insert(selfbeatUserHistoryTable)
+        .values({
+          userId,
+          comparisonId: id as any,
+          question,
+          winner: winner.displayName,
+        })
+        .catch(() => {});
+    }
 
     // Trigger referral completion on first question (fire-and-forget)
     if (userId && creditDeducted) {

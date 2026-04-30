@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Globe, Check, Coins, LogOut, ChevronDown, ShieldCheck, Mail } from "lucide-react";
+import { Globe, Check, Coins, LogOut, ChevronDown, ShieldCheck, Mail, History } from "lucide-react";
 import { SelfbeatLogo } from "@/components/SelfbeatLogo";
 import { useLanguage } from "@/lib/language-context";
 import { useCredits } from "@/lib/credits-context";
@@ -183,6 +183,14 @@ export default function Navbar() {
                     >
                       <Coins className="h-4 w-4 text-amber-500" />
                       {isUnlimited ? "Unlimited" : `${credits} credit${credits !== 1 ? "s" : ""}`}
+                    </Link>
+                    <Link
+                      href="/profile"
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-accent transition-colors text-foreground"
+                      onClick={() => setUserOpen(false)}
+                    >
+                      <History className="h-4 w-4 text-muted-foreground" />
+                      My History
                     </Link>
                     <Link
                       href="/settings"

@@ -22,6 +22,7 @@ import AdminDebugPage from "@/pages/admin-debug";
 import SettingsPage from "@/pages/settings";
 import UnsubscribePage from "@/pages/unsubscribe";
 import SuccessPage from "@/pages/success";
+import ProfilePage from "@/pages/profile";
 import FeaturedPage from "@/pages/featured";
 import FeaturedResultPage from "@/pages/featured-result";
 import Navbar from "@/components/layout/Navbar";
@@ -91,6 +92,7 @@ function Router() {
                 <Route path="/admin/debug" component={AdminDebugPage} />
                 <Route path="/admin/qotd" component={AdminQotd} />
                 <Route path="/settings" component={SettingsPage} />
+                <Route path="/profile" component={ProfilePage} />
                 <Route path="/unsubscribe/:token" component={UnsubscribePage} />
                 <Route path="/success" component={SuccessPage} />
                 <Route path="/featured" component={FeaturedPage} />
