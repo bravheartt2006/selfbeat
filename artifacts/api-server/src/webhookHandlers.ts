@@ -1,48 +1,18 @@
 import type Stripe from "stripe";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, selfbeatUsersTable } from "@workspace/db";
 import { getUncachableStripeClient, getStripeSync } from "./stripeClient";
 import { logger } from "./lib/logger";
-
-function planTypeFromProduct(product: Stripe.Product): string {
-  const planId = product.metadata?.plan_id;
-  if (planId === "pro_annual") return "annual";
-  if (planId === "team") return "team";
-  return "monthly";
-}
+import { fulfillCheckoutSession } from "./lib/fulfillCheckoutSession";
 
 async function applyBusinessLogic(event: Stripe.Event): Promise<void> {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
-      const userId = session.metadata?.userId;
-      if (!userId) break;
-
-      if (session.mode === "payment") {
-        await db
-          .update(selfbeatUsersTable)
-          .set({ credits: sql`${selfbeatUsersTable.credits} + 25` })
-          .where(eq(selfbeatUsersTable.id, userId));
-        logger.info({ userId }, "Added 25 credits for one-time payment");
-      } else if (session.mode === "subscription" && session.subscription) {
-        const stripe = await getUncachableStripeClient();
-        const subscription = await stripe.subscriptions.retrieve(
-          session.subscription as string
-        );
-        const priceId = subscription.items.data[0]?.price.id;
-        const price = await stripe.prices.retrieve(priceId);
-        const product = await stripe.products.retrieve(price.product as string);
-        const planType = planTypeFromProduct(product);
-
-        await db
-          .update(selfbeatUsersTable)
-          .set({
-            hasUnlimited: true,
-            planType,
-            stripeSubscriptionId: session.subscription as string,
-          })
-          .where(eq(selfbeatUsersTable.id, userId));
-        logger.info({ userId, planType }, "Subscription activated");
+      const stripe = await getUncachableStripeClient();
+      const result = await fulfillCheckoutSession(session, stripe);
+      if (result.alreadyProcessed) {
+        logger.info({ sessionId: session.id }, "Webhook: session already fulfilled via verify-session, skipping");
       }
       break;
     }
