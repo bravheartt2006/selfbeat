@@ -35,6 +35,9 @@ async function ensureSessionTable() {
 
 ensureSessionTable()
   .then(() => {
+    const stripeKey = process.env.STRIPE_SECRET_KEY ?? "";
+    const stripeMode = stripeKey.startsWith("sk_test_") ? "TEST" : stripeKey.startsWith("sk_live_") ? "LIVE" : "UNKNOWN";
+    logger.info({ stripeKeyPrefix: stripeKey.substring(0, 12), stripeMode }, "Stripe startup mode");
     startEmailScheduler();
     seedStripeProducts().catch(() => {});
     app.listen(port, (err) => {
