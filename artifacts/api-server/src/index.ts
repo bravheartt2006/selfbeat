@@ -33,22 +33,26 @@ async function ensureSessionTable() {
   logger.info("Session table ready");
 }
 
+// Start listening immediately so Railway's healthcheck can reach the server.
+// DB setup runs after — if it fails the process exits, but the port is already bound.
+const server = app.listen(port, (err) => {
+  if (err) {
+    logger.error({ err }, "Error listening on port");
+    process.exit(1);
+  }
+  logger.info({ port }, "Server listening");
+});
+
+const stripeKey = process.env.STRIPE_SECRET_KEY ?? "";
+const stripeMode = stripeKey.startsWith("sk_test_") ? "TEST" : stripeKey.startsWith("sk_live_") ? "LIVE" : "UNKNOWN";
+logger.info({ stripeKeyPrefix: stripeKey.substring(0, 12), stripeMode }, "Stripe startup mode");
+
 ensureSessionTable()
   .then(() => {
-    const stripeKey = process.env.STRIPE_SECRET_KEY ?? "";
-    const stripeMode = stripeKey.startsWith("sk_test_") ? "TEST" : stripeKey.startsWith("sk_live_") ? "LIVE" : "UNKNOWN";
-    logger.info({ stripeKeyPrefix: stripeKey.substring(0, 12), stripeMode }, "Stripe startup mode");
     startEmailScheduler();
     seedStripeProducts().catch(() => {});
-    app.listen(port, (err) => {
-      if (err) {
-        logger.error({ err }, "Error listening on port");
-        process.exit(1);
-      }
-      logger.info({ port }, "Server listening");
-    });
   })
   .catch((err) => {
-    logger.error({ err }, "Failed to ensure session table — aborting");
-    process.exit(1);
+    logger.error({ err }, "Failed to ensure session table — check DATABASE_URL");
+    server.close(() => process.exit(1));
   });

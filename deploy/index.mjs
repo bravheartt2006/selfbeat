@@ -21113,13 +21113,13 @@ var require_application = __commonJS({
       tryRender(view, renderOptions, done);
     };
     app2.listen = function listen() {
-      var server = http4.createServer(this);
+      var server2 = http4.createServer(this);
       var args = slice.call(arguments);
       if (typeof args[args.length - 1] === "function") {
         var done = args[args.length - 1] = once(args[args.length - 1]);
-        server.once("error", done);
+        server2.once("error", done);
       }
-      return server.listen.apply(server, args);
+      return server2.listen.apply(server2, args);
     };
     function logerror(err) {
       if (this.get("env") !== "test") console.error(err.stack || err.toString());
@@ -130347,10 +130347,10 @@ var require_websocket_server = __commonJS({
             process.nextTick(emitClose, this);
           }
         } else {
-          const server = this._server;
+          const server2 = this._server;
           this._removeListeners();
           this._removeListeners = this._server = null;
-          server.close(() => {
+          server2.close(() => {
             emitClose(this);
           });
         }
@@ -130533,17 +130533,17 @@ var require_websocket_server = __commonJS({
       }
     };
     module.exports = WebSocketServer2;
-    function addListeners(server, map2) {
-      for (const event of Object.keys(map2)) server.on(event, map2[event]);
+    function addListeners(server2, map2) {
+      for (const event of Object.keys(map2)) server2.on(event, map2[event]);
       return function removeListeners() {
         for (const event of Object.keys(map2)) {
-          server.removeListener(event, map2[event]);
+          server2.removeListener(event, map2[event]);
         }
       };
     }
-    function emitClose(server) {
-      server._state = CLOSED;
-      server.emit("close");
+    function emitClose(server2) {
+      server2._state = CLOSED;
+      server2.emit("close");
     }
     function socketOnError() {
       this.destroy();
@@ -130562,11 +130562,11 @@ var require_websocket_server = __commonJS({
 ` + Object.keys(headers).map((h2) => `${h2}: ${headers[h2]}`).join("\r\n") + "\r\n\r\n" + message
       );
     }
-    function abortHandshakeOrEmitwsClientError(server, req, socket, code, message, headers) {
-      if (server.listenerCount("wsClientError")) {
+    function abortHandshakeOrEmitwsClientError(server2, req, socket, code, message, headers) {
+      if (server2.listenerCount("wsClientError")) {
         const err = new Error(message);
         Error.captureStackTrace(err, abortHandshakeOrEmitwsClientError);
-        server.emit("wsClientError", err, socket, req);
+        server2.emit("wsClientError", err, socket, req);
       } else {
         abortHandshake(socket, code, message, headers);
       }
@@ -158746,23 +158746,23 @@ async function ensureSessionTable() {
   `);
   logger.info("Session table ready");
 }
+var server = app_default.listen(port, (err) => {
+  if (err) {
+    logger.error({ err }, "Error listening on port");
+    process.exit(1);
+  }
+  logger.info({ port }, "Server listening");
+});
+var stripeKey = process.env.STRIPE_SECRET_KEY ?? "";
+var stripeMode = stripeKey.startsWith("sk_test_") ? "TEST" : stripeKey.startsWith("sk_live_") ? "LIVE" : "UNKNOWN";
+logger.info({ stripeKeyPrefix: stripeKey.substring(0, 12), stripeMode }, "Stripe startup mode");
 ensureSessionTable().then(() => {
-  const stripeKey = process.env.STRIPE_SECRET_KEY ?? "";
-  const stripeMode = stripeKey.startsWith("sk_test_") ? "TEST" : stripeKey.startsWith("sk_live_") ? "LIVE" : "UNKNOWN";
-  logger.info({ stripeKeyPrefix: stripeKey.substring(0, 12), stripeMode }, "Stripe startup mode");
   startEmailScheduler();
   seedStripeProducts().catch(() => {
   });
-  app_default.listen(port, (err) => {
-    if (err) {
-      logger.error({ err }, "Error listening on port");
-      process.exit(1);
-    }
-    logger.info({ port }, "Server listening");
-  });
 }).catch((err) => {
-  logger.error({ err }, "Failed to ensure session table \u2014 aborting");
-  process.exit(1);
+  logger.error({ err }, "Failed to ensure session table \u2014 check DATABASE_URL");
+  server.close(() => process.exit(1));
 });
 /*! Bundled license information:
 
