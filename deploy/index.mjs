@@ -26363,7 +26363,7 @@ var require_atomic_sleep = __commonJS({
   "../../node_modules/.pnpm/atomic-sleep@1.0.0/node_modules/atomic-sleep/index.js"(exports, module) {
     "use strict";
     if (typeof SharedArrayBuffer !== "undefined" && typeof Atomics !== "undefined") {
-      let sleep5 = function(ms) {
+      let sleep6 = function(ms) {
         const valid = ms > 0 && ms < Infinity;
         if (valid === false) {
           if (typeof ms !== "number" && typeof ms !== "bigint") {
@@ -26374,9 +26374,9 @@ var require_atomic_sleep = __commonJS({
         Atomics.wait(nil, 0, 0, Number(ms));
       };
       const nil = new Int32Array(new SharedArrayBuffer(4));
-      module.exports = sleep5;
+      module.exports = sleep6;
     } else {
-      let sleep5 = function(ms) {
+      let sleep6 = function(ms) {
         const valid = ms > 0 && ms < Infinity;
         if (valid === false) {
           if (typeof ms !== "number" && typeof ms !== "bigint") {
@@ -26388,7 +26388,7 @@ var require_atomic_sleep = __commonJS({
         while (target > Date.now()) {
         }
       };
-      module.exports = sleep5;
+      module.exports = sleep6;
     }
   }
 });
@@ -26401,7 +26401,7 @@ var require_sonic_boom = __commonJS({
     var EventEmitter2 = __require("events");
     var inherits = __require("util").inherits;
     var path5 = __require("path");
-    var sleep5 = require_atomic_sleep();
+    var sleep6 = require_atomic_sleep();
     var assert2 = __require("assert");
     var BUSY_WRITE_TIMEOUT = 100;
     var kEmptyBuffer = Buffer.allocUnsafe(0);
@@ -26547,7 +26547,7 @@ var require_sonic_boom = __commonJS({
           if ((err.code === "EAGAIN" || err.code === "EBUSY") && this.retryEAGAIN(err, this._writingBuf.length, this._len - this._writingBuf.length)) {
             if (this.sync) {
               try {
-                sleep5(BUSY_WRITE_TIMEOUT);
+                sleep6(BUSY_WRITE_TIMEOUT);
                 this.release(void 0, 0);
               } catch (err2) {
                 this.release(err2);
@@ -26860,7 +26860,7 @@ var require_sonic_boom = __commonJS({
           if (shouldRetry && !this.retryEAGAIN(err, buf.length, this._len - buf.length)) {
             throw err;
           }
-          sleep5(BUSY_WRITE_TIMEOUT);
+          sleep6(BUSY_WRITE_TIMEOUT);
         }
       }
       try {
@@ -26897,7 +26897,7 @@ var require_sonic_boom = __commonJS({
           if (shouldRetry && !this.retryEAGAIN(err, buf.length, this._len - buf.length)) {
             throw err;
           }
-          sleep5(BUSY_WRITE_TIMEOUT);
+          sleep6(BUSY_WRITE_TIMEOUT);
         }
       }
     }
@@ -27638,7 +27638,7 @@ var require_transport = __commonJS({
     var { createRequire } = __require("module");
     var getCallers = require_caller();
     var { join: join2, isAbsolute, sep } = __require("node:path");
-    var sleep5 = require_atomic_sleep();
+    var sleep6 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
     var ThreadStream = require_thread_stream();
     function setupOnExit(stream) {
@@ -27672,7 +27672,7 @@ var require_transport = __commonJS({
           return;
         }
         stream.flushSync();
-        sleep5(100);
+        sleep6(100);
         stream.end();
       }
       return stream;
@@ -63028,7 +63028,7 @@ var require_request3 = __commonJS({
     }
     function sendWithRetry(url2, init, retryScheduleInMs, nextInterval = 50, triesLeft = 2, fetchImpl = fetch, retryCount = 1) {
       return __awaiter(this, void 0, void 0, function* () {
-        const sleep5 = (interval2) => new Promise((resolve) => setTimeout(resolve, interval2));
+        const sleep6 = (interval2) => new Promise((resolve) => setTimeout(resolve, interval2));
         try {
           const response = yield fetchImpl(url2, init);
           if (triesLeft <= 0 || response.status < 500) {
@@ -63039,7 +63039,7 @@ var require_request3 = __commonJS({
             throw e2;
           }
         }
-        yield sleep5(nextInterval);
+        yield sleep6(nextInterval);
         init.headers["svix-retry-count"] = retryCount.toString();
         nextInterval = (retryScheduleInMs === null || retryScheduleInMs === void 0 ? void 0 : retryScheduleInMs[retryCount]) || nextInterval * 2;
         return yield sendWithRetry(url2, init, retryScheduleInMs, nextInterval, --triesLeft, fetchImpl, ++retryCount);
@@ -158734,17 +158734,27 @@ var port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
-async function ensureSessionTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS "session" (
-      "sid"    varchar     NOT NULL,
-      "sess"   json        NOT NULL,
-      "expire" timestamp(6) NOT NULL,
-      PRIMARY KEY ("sid")
-    );
-    CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
-  `);
-  logger.info("Session table ready");
+var sleep5 = (ms) => new Promise((r2) => setTimeout(r2, ms));
+async function ensureSessionTable(retries = 10, delayMs = 3e3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS "session" (
+          "sid"    varchar     NOT NULL,
+          "sess"   json        NOT NULL,
+          "expire" timestamp(6) NOT NULL,
+          PRIMARY KEY ("sid")
+        );
+        CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+      `);
+      logger.info("Session table ready");
+      return;
+    } catch (err) {
+      if (attempt === retries) throw err;
+      logger.warn({ err, attempt, retries }, `DB not ready \u2014 retrying in ${delayMs / 1e3}s`);
+      await sleep5(delayMs);
+    }
+  }
 }
 var server = app_default.listen(port, (err) => {
   if (err) {
@@ -158761,7 +158771,7 @@ ensureSessionTable().then(() => {
   seedStripeProducts().catch(() => {
   });
 }).catch((err) => {
-  logger.error({ err }, "Failed to ensure session table \u2014 check DATABASE_URL");
+  logger.error({ err }, "Failed to connect to database after all retries \u2014 check DATABASE_URL");
   server.close(() => process.exit(1));
 });
 /*! Bundled license information:

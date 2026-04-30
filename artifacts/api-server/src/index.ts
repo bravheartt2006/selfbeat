@@ -18,23 +18,35 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 // Create the session table directly (avoids connect-pg-simple's table.sql
 // file-read which breaks when bundled with esbuild).
-async function ensureSessionTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS "session" (
-      "sid"    varchar     NOT NULL,
-      "sess"   json        NOT NULL,
-      "expire" timestamp(6) NOT NULL,
-      PRIMARY KEY ("sid")
-    );
-    CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
-  `);
-  logger.info("Session table ready");
+// Retries up to 10 times with 3s delay to handle Postgres not being ready yet.
+async function ensureSessionTable(retries = 10, delayMs = 3000): Promise<void> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS "session" (
+          "sid"    varchar     NOT NULL,
+          "sess"   json        NOT NULL,
+          "expire" timestamp(6) NOT NULL,
+          PRIMARY KEY ("sid")
+        );
+        CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+      `);
+      logger.info("Session table ready");
+      return;
+    } catch (err) {
+      if (attempt === retries) throw err;
+      logger.warn({ err, attempt, retries }, `DB not ready — retrying in ${delayMs / 1000}s`);
+      await sleep(delayMs);
+    }
+  }
 }
 
 // Start listening immediately so Railway's healthcheck can reach the server.
-// DB setup runs after — if it fails the process exits, but the port is already bound.
+// DB setup runs after with retries — handles Postgres being slow to start.
 const server = app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
@@ -53,6 +65,6 @@ ensureSessionTable()
     seedStripeProducts().catch(() => {});
   })
   .catch((err) => {
-    logger.error({ err }, "Failed to ensure session table — check DATABASE_URL");
+    logger.error({ err }, "Failed to connect to database after all retries — check DATABASE_URL");
     server.close(() => process.exit(1));
   });
