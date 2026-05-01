@@ -158650,7 +158650,7 @@ var frontendDist = path5.join(
   "../../../artifacts/selfbeat/dist/public"
 );
 app.use(import_express16.default.static(frontendDist));
-app.get("*", (_req, res) => {
+app.get("/{*path}", (_req, res) => {
   res.sendFile(path5.join(frontendDist, "index.html"));
 });
 var app_default = app;
