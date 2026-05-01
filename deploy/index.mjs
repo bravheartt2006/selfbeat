@@ -150383,6 +150383,7 @@ var import_cors = __toESM(require_lib3(), 1);
 var import_express_session = __toESM(require_express_session(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 var import_connect_pg_simple = __toESM(require_connect_pg_simple(), 1);
+import path5 from "path";
 
 // src/routes/auth.ts
 var import_express3 = __toESM(require_express2(), 1);
@@ -158588,8 +158589,6 @@ var routes_default = router15;
 // src/app.ts
 init_logger2();
 init_src();
-import path5 from "path";
-import { fileURLToPath as fileURLToPath2 } from "url";
 var PgStore = (0, import_connect_pg_simple.default)(import_express_session.default);
 var app = (0, import_express16.default)();
 app.set("trust proxy", 1);
@@ -158633,7 +158632,6 @@ app.use(
     saveUninitialized: false,
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1e3,
-      // 30 days
       httpOnly: true,
       secure: true,
       sameSite: "none"
@@ -158643,12 +158641,7 @@ app.use(
 app.use(import_passport.default.initialize());
 app.use(import_passport.default.session());
 app.use("/api", routes_default);
-var __filename3 = fileURLToPath2(import.meta.url);
-var __dirname3 = path5.dirname(__filename3);
-var frontendDist = path5.join(
-  __dirname3,
-  "../../../artifacts/selfbeat/dist/public"
-);
+var frontendDist = "/app/artifacts/selfbeat/dist/public";
 app.use(import_express16.default.static(frontendDist));
 app.get("/{*path}", (_req, res) => {
   res.sendFile(path5.join(frontendDist, "index.html"));

@@ -1,3 +1,4 @@
+import path from "path";
 import express, { type Express } from "express";
 import cors from "cors";
 import session from "express-session";
@@ -10,10 +11,8 @@ import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
 
 const PgStore = PgSession(session);
-
 const app: Express = express();
 
-// Trust the Replit proxy so that secure cookies work (req.secure = true)
 app.set("trust proxy", 1);
 
 app.use(
@@ -28,8 +27,8 @@ app.use(
       },
     },
   }),
+);
 
-// Stripe webhook — must come before body parsers (streams raw bytes)
 app.post(
   "/api/stripe/webhook",
   express.raw({ type: "application/json" }),
@@ -51,7 +50,6 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session middleware (PostgreSQL-backed)
 app.use(
   session({
     store: new PgStore({ pool }),
@@ -59,28 +57,22 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      maxAge: 30 * 24 * 60 * 60 * 1000,
       httpOnly: true,
       secure: true,
       sameSite: "none",
     },
   }),
+);
 
-// Passport
 app.use(passport.initialize());
 app.use(passport.session());
-
 app.use("/api", router);
-import path from "path";
-import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Serve React frontend
-const frontendDist = "/app/artifacts/selfbeat/dist/public"
+const frontendDist = "/app/artifacts/selfbeat/dist/public";
 app.use(express.static(frontendDist));
 app.get("/{*path}", (_req, res) => {
   res.sendFile(path.join(frontendDist, "index.html"));
 });
+
 export default app;
