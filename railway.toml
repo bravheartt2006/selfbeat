@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "pnpm install && PORT=8080 BASE_PATH=/ pnpm --filter @workspace/selfbeat run build"
+buildCommand = buildCommand = "pnpm install --no-frozen-lockfile && PORT=8080 BASE_PATH=/ pnpm --filter @workspace/selfbeat run build"
 
 [deploy]
 startCommand = "node deploy/index.mjs"
