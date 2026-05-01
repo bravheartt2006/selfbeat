@@ -27,8 +27,7 @@ app.use(
         return { statusCode: res.statusCode };
       },
     },
-  })
-);
+  }),
 
 // Stripe webhook — must come before body parsers (streams raw bytes)
 app.post(
@@ -45,8 +44,7 @@ app.post(
       logger.error({ err }, "Stripe webhook error");
       res.status(400).json({ error: err.message });
     }
-  }
-);
+  },
 
 app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
@@ -65,13 +63,23 @@ app.use(
       secure: true,
       sameSite: "none",
     },
-  })
-);
+  }),
 
 // Passport
 app.use(passport.initialize());
 app.use(passport.session());
 
 app.use("/api", router);
+import path from "path";
+import { fileURLToPath } from "url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve React frontend
+const frontendDist = "/app/artifacts/selfbeat/dist/public"
+app.use(express.static(frontendDist));
+app.get("/{*path}", (_req, res) => {
+  res.sendFile(path.join(frontendDist, "index.html"));
+});
 export default app;
