@@ -45,6 +45,7 @@ app.post(
       res.status(400).json({ error: err.message });
     }
   },
+);
 
 app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
