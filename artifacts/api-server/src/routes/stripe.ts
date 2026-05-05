@@ -70,8 +70,11 @@ router.post("/checkout", requireAuth, async (req: any, res) => {
         .where(eq(selfbeatUsersTable.id, userId));
     }
 
-    const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
-    const base = domain ? `https://${domain}` : "http://localhost:3000";
+    const base =
+      process.env.APP_URL?.replace(/\/$/, "") ||
+      (process.env.REPLIT_DOMAINS
+        ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+        : "http://localhost:3000");
 
     const price = await stripe.prices.retrieve(priceId);
     const mode = price.type === "recurring" ? "subscription" : "payment";
@@ -93,8 +96,8 @@ router.post("/checkout", requireAuth, async (req: any, res) => {
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
       mode,
-      success_url: `${base}/selfbeat/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${base}/selfbeat/pricing?canceled=1`,
+      success_url: `${base}/selfbeat/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${base}/selfbeat/payment-cancelled`,
       metadata: { userId },
     };
 
@@ -176,8 +179,11 @@ router.post("/portal", requireAuth, async (req: any, res) => {
     if (!user?.stripeCustomerId)
       return res.status(400).json({ error: "No Stripe customer" });
 
-    const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
-    const base = domain ? `https://${domain}` : "http://localhost:3000";
+    const base =
+      process.env.APP_URL?.replace(/\/$/, "") ||
+      (process.env.REPLIT_DOMAINS
+        ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+        : "http://localhost:3000");
 
     const session = await stripe.billingPortal.sessions.create({
       customer: user.stripeCustomerId,

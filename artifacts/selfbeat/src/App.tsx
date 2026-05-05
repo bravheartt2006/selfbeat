@@ -22,6 +22,8 @@ import AdminDebugPage from "@/pages/admin-debug";
 import SettingsPage from "@/pages/settings";
 import UnsubscribePage from "@/pages/unsubscribe";
 import SuccessPage from "@/pages/success";
+import PaymentSuccessPage from "@/pages/payment-success";
+import PaymentCancelledPage from "@/pages/payment-cancelled";
 import ProfilePage from "@/pages/profile";
 import FeaturedPage from "@/pages/featured";
 import FeaturedResultPage from "@/pages/featured-result";
@@ -95,6 +97,8 @@ function Router() {
                 <Route path="/profile" component={ProfilePage} />
                 <Route path="/unsubscribe/:token" component={UnsubscribePage} />
                 <Route path="/success" component={SuccessPage} />
+                <Route path="/payment-success" component={PaymentSuccessPage} />
+                <Route path="/payment-cancelled" component={PaymentCancelledPage} />
                 <Route path="/featured" component={FeaturedPage} />
                 <Route path="/featured/:id" component={FeaturedResultPage} />
                 <Route component={NotFound} />

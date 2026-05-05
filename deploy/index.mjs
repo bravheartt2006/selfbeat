@@ -157156,8 +157156,7 @@ router7.post("/checkout", requireAuth, async (req, res) => {
       customerId = customer.id;
       await db.update(selfbeatUsersTable).set({ stripeCustomerId: customerId }).where(eq(selfbeatUsersTable.id, userId));
     }
-    const domain2 = process.env.REPLIT_DOMAINS?.split(",")[0];
-    const base = domain2 ? `https://${domain2}` : "http://localhost:3000";
+    const base = process.env.APP_URL?.replace(/\/$/, "") || (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : "http://localhost:3000");
     const price = await stripe.prices.retrieve(priceId);
     const mode = price.type === "recurring" ? "subscription" : "payment";
     const now = /* @__PURE__ */ new Date();
@@ -157168,8 +157167,8 @@ router7.post("/checkout", requireAuth, async (req, res) => {
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
       mode,
-      success_url: `${base}/selfbeat/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${base}/selfbeat/pricing?canceled=1`,
+      success_url: `${base}/selfbeat/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${base}/selfbeat/payment-cancelled`,
       metadata: { userId }
     };
     if (shouldApplyDiscount) {
@@ -157220,8 +157219,7 @@ router7.post("/portal", requireAuth, async (req, res) => {
     const [user] = await db.select().from(selfbeatUsersTable).where(eq(selfbeatUsersTable.id, userId)).limit(1);
     if (!user?.stripeCustomerId)
       return res.status(400).json({ error: "No Stripe customer" });
-    const domain2 = process.env.REPLIT_DOMAINS?.split(",")[0];
-    const base = domain2 ? `https://${domain2}` : "http://localhost:3000";
+    const base = process.env.APP_URL?.replace(/\/$/, "") || (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : "http://localhost:3000");
     const session2 = await stripe.billingPortal.sessions.create({
       customer: user.stripeCustomerId,
       return_url: `${base}/selfbeat/pricing`
