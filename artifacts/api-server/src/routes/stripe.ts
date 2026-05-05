@@ -96,8 +96,8 @@ router.post("/checkout", requireAuth, async (req: any, res) => {
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
       mode,
-      success_url: `${base}/selfbeat/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${base}/selfbeat/payment-cancelled`,
+      success_url: `${base}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${base}/payment-cancelled`,
       metadata: { userId },
     };
 
@@ -187,7 +187,7 @@ router.post("/portal", requireAuth, async (req: any, res) => {
 
     const session = await stripe.billingPortal.sessions.create({
       customer: user.stripeCustomerId,
-      return_url: `${base}/selfbeat/pricing`,
+      return_url: `${base}/pricing`,
     });
 
     return res.json({ url: session.url });

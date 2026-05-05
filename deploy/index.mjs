@@ -157363,8 +157363,8 @@ router7.post("/checkout", requireAuth, async (req, res) => {
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
       mode,
-      success_url: `${base}/selfbeat/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${base}/selfbeat/payment-cancelled`,
+      success_url: `${base}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${base}/payment-cancelled`,
       metadata: { userId }
     };
     if (shouldApplyDiscount) {
@@ -157418,7 +157418,7 @@ router7.post("/portal", requireAuth, async (req, res) => {
     const base = process.env.APP_URL?.replace(/\/$/, "") || (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : "http://localhost:3000");
     const session2 = await stripe.billingPortal.sessions.create({
       customer: user.stripeCustomerId,
-      return_url: `${base}/selfbeat/pricing`
+      return_url: `${base}/pricing`
     });
     return res.json({ url: session2.url });
   } catch (err) {
