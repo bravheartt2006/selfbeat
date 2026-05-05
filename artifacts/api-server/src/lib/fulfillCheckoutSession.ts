@@ -3,7 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { db, selfbeatUsersTable } from "@workspace/db";
 import { logger } from "./logger";
 
-function planTypeFromProduct(product: Stripe.Product): string {
+export function planTypeFromProduct(product: Stripe.Product): string {
   const planId = product.metadata?.plan_id;
   if (planId === "pro_annual") return "annual";
   if (planId === "team") return "team";
