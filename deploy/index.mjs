@@ -156944,6 +156944,7 @@ data: ${JSON.stringify(data)}
           status = "fallback";
           hasRealAnswer = !!backup;
           error40 = err instanceof Error ? err.message : "Provider unavailable.";
+          console.error(`MODEL ERROR [${model.key}] round1:`, error40);
         }
         emit("round1", {
           model: model.key,
@@ -157085,7 +157086,10 @@ data: ${JSON.stringify(data)}
     emit("done", { id });
     res.end();
   } catch (err) {
-    req.log.error({ err }, "Streaming comparison failed");
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const errStack = err instanceof Error ? err.stack : "";
+    console.error("STREAM COMPARISON FAILED:", errMsg);
+    console.error("STACK:", errStack);
     emit("error", { message: "Comparison failed. Please try again in a moment." });
     res.end();
   }

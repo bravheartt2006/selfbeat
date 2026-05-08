@@ -1098,6 +1098,7 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
           status = "fallback";
           hasRealAnswer = !!backup;
           error = err instanceof Error ? err.message : "Provider unavailable.";
+          console.error(`MODEL ERROR [${model.key}] round1:`, error);
         }
 
         emit("round1", {
@@ -1279,7 +1280,10 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
     emit("done", { id });
     res.end();
   } catch (err) {
-    req.log.error({ err }, "Streaming comparison failed");
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const errStack = err instanceof Error ? err.stack : "";
+    console.error("STREAM COMPARISON FAILED:", errMsg);
+    console.error("STACK:", errStack);
     emit("error", { message: "Comparison failed. Please try again in a moment." });
     res.end();
   }
