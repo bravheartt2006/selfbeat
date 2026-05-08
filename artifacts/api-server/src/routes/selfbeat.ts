@@ -265,12 +265,19 @@ async function generatePhysicianNote(question: string, answers: string, lang = "
 async function withRetry<T>(operation: () => Promise<T>) {
   let lastError: unknown;
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       return await operation();
     } catch (error) {
       lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+      const isConnectionError = error instanceof Error &&
+        (error.message.includes("Connection error") ||
+         error.message.includes("ECONNRESET") ||
+         error.message.includes("ETIMEDOUT") ||
+         error.message.includes("socket hang up") ||
+         error.message.includes("fetch failed"));
+      const delay = isConnectionError ? 2000 : 150 * (attempt + 1);
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
@@ -967,6 +974,13 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
+  // Keep-alive ping every 5 seconds to prevent proxy/Railway from dropping the connection
+  const keepAlive = setInterval(() => {
+    if (!res.writableEnded) {
+      res.write(": ping\n\n");
+    }
+  }, 5000);
+
   const emit = (event: string, data: unknown) => {
     if (!res.writableEnded) {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -1079,7 +1093,7 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
               450,
               langSystemPrompt(lang),
             ),
-            12000,
+            30000,
           );
           if (raw) {
             answer = raw;
@@ -1124,6 +1138,7 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
 
     // If limited (no credits), stop here after Round 1
     if (isLimited) {
+      clearInterval(keepAlive);
       emit("done", { id: randomUUID(), limited: true });
       res.end();
       return;
@@ -1171,7 +1186,7 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
                 300,
                 langSystemPrompt(lang),
               ),
-              10000,
+              20000,
             );
           } catch {}
 
@@ -1277,9 +1292,11 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
       handleFirstQuestionReferral(userId).catch(() => {});
     }
 
+    clearInterval(keepAlive);
     emit("done", { id });
     res.end();
   } catch (err) {
+    clearInterval(keepAlive);
     const errMsg = err instanceof Error ? err.message : String(err);
     const errStack = err instanceof Error ? err.stack : "";
     console.error("STREAM COMPARISON FAILED:", errMsg);

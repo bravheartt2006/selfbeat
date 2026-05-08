@@ -156299,12 +156299,14 @@ async function generatePhysicianNote(question, answers, lang = "English") {
 }
 async function withRetry2(operation) {
   let lastError;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       return await operation();
     } catch (error40) {
       lastError = error40;
-      await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+      const isConnectionError = error40 instanceof Error && (error40.message.includes("Connection error") || error40.message.includes("ECONNRESET") || error40.message.includes("ETIMEDOUT") || error40.message.includes("socket hang up") || error40.message.includes("fetch failed"));
+      const delay = isConnectionError ? 2e3 : 150 * (attempt + 1);
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
   throw lastError;
@@ -156833,6 +156835,11 @@ router5.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res)
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
+  const keepAlive = setInterval(() => {
+    if (!res.writableEnded) {
+      res.write(": ping\n\n");
+    }
+  }, 5e3);
   const emit = (event, data) => {
     if (!res.writableEnded) {
       res.write(`event: ${event}
@@ -156925,7 +156932,7 @@ data: ${JSON.stringify(data)}
               450,
               langSystemPrompt(lang)
             ),
-            12e3
+            3e4
           );
           if (raw) {
             answer = raw;
@@ -156962,6 +156969,7 @@ data: ${JSON.stringify(data)}
       (_, i2) => clampScore(5.5 + questionSeed(question, i2 + 1) * 4)
     );
     if (isLimited) {
+      clearInterval(keepAlive);
       emit("done", { id: randomUUID3(), limited: true });
       res.end();
       return;
@@ -156998,7 +157006,7 @@ data: ${JSON.stringify(data)}
                 300,
                 langSystemPrompt(lang)
               ),
-              1e4
+              2e4
             );
           } catch {
           }
@@ -157083,9 +157091,11 @@ data: ${JSON.stringify(data)}
       handleFirstQuestionReferral(userId).catch(() => {
       });
     }
+    clearInterval(keepAlive);
     emit("done", { id });
     res.end();
   } catch (err) {
+    clearInterval(keepAlive);
     const errMsg = err instanceof Error ? err.message : String(err);
     const errStack = err instanceof Error ? err.stack : "";
     console.error("STREAM COMPARISON FAILED:", errMsg);
