@@ -233,7 +233,7 @@ const fallbackCriticism = (model: ModelInfo) => {
   return `I gave a usable answer, but I may have stayed too broad because the live provider was unavailable. I covered the main structure but did not fully benchmark my claims against the other models (${others}). Honest score: 7.0/10.`;
 };
 
-async function generatePhysicianNote(question: string, answers: string, lang = "en"): Promise<string | undefined> {
+async function generatePhysicianNote(question: string, answers: string, lang = "English"): Promise<string | undefined> {
   try {
     const { anthropic } = await import("@workspace/integrations-anthropic-ai");
     const prompt = [
@@ -508,9 +508,9 @@ const detectGenericResponse = (answer: string, question: string, status: "succes
 async function generateVerdictInsights(
   question: string,
   answers: { displayName: string; answer: string }[],
-  lang = "en",
+  lang = "English",
 ): Promise<{ agreementPoints: string[]; disagreementPoints: string[] }> {
-  const vl = VERDICT_LANG[lang] ?? VERDICT_LANG["en"];
+  const vl = VERDICT_LANG[LANG_NAME_TO_CODE[lang] ?? "en"] ?? VERDICT_LANG["en"];
   const fallback = {
     agreementPoints: vl.insightFallbackAgree,
     disagreementPoints: vl.insightFallbackDisagree,
@@ -522,7 +522,7 @@ async function generateVerdictInsights(
       .map(({ displayName, answer }) => `${displayName}: ${answer.slice(0, 200)}`)
       .join("\n\n");
 
-    const langName = LANG_NAMES[lang] ?? "English";
+    const langName = lang;
     const sys = langSystemPrompt(lang);
     const prompt = [
       `${langUserPrefix(lang)}Ten AI models answered this question: "${question}"`,
@@ -534,7 +534,7 @@ async function generateVerdictInsights(
       `1. Three specific points where the models genuinely agreed (reference actual content, not generic statements).`,
       `2. Two or three specific points where they genuinely differed (reference actual differences in content, tone, or emphasis).`,
       ``,
-      lang !== "en" ? `Write the entire verdict in ${langName}. Every single word must be in ${langName}. Do not use English at all.` : ``,
+      lang !== "English" ? `Write the entire verdict in ${langName}. Every single word must be in ${langName}. Do not use English at all.` : ``,
     `Respond in this exact JSON format with no extra text (write the string values in ${langName}):`,
       `{"agreementPoints":["...", "...", "..."],"disagreementPoints":["...", "..."]}`,
     ].join("\n");
@@ -568,7 +568,7 @@ async function generateVerdictInsights(
   }
 }
 
-async function createComparison(question: string, mode: "live" | "mock", lang = "en") {
+async function createComparison(question: string, mode: "live" | "mock", lang = "English") {
   const isMedical = isMedicalQuestion(question);
 
   const langSys = langSystemPrompt(lang);
@@ -731,7 +731,7 @@ async function createComparison(question: string, mode: "live" | "mock", lang = 
     .map((r) => ({ displayName: r.displayName, answer: r.answer }));
   const insights = await generateVerdictInsights(question, answerPayload.length > 0 ? answerPayload : secondRound.map((r) => ({ displayName: r.displayName, answer: r.answer })), lang);
 
-  const vl = VERDICT_LANG[lang] ?? VERDICT_LANG["en"];
+  const vl = VERDICT_LANG[LANG_NAME_TO_CODE[lang] ?? "en"] ?? VERDICT_LANG["en"];
   const verdictDetails = {
     summary: vl.summary(winner.displayName),
     bestAnswer: vl.bestAnswer(winner.displayName),
@@ -796,6 +796,16 @@ const LANG_NAMES: Record<string, string> = {
   es: "Spanish",
 };
 
+/** Maps full language name → VERDICT_LANG code key. */
+const LANG_NAME_TO_CODE: Record<string, string> = {
+  English: "en",
+  French: "fr",
+  Arabic: "ar",
+  Chinese: "zh",
+  Italian: "it",
+  Spanish: "es",
+};
+
 /** Native-script names used inside the language enforcement prefix. */
 const LANG_NATIVE: Record<string, string> = {
   en: "English",
@@ -811,10 +821,8 @@ const LANG_NATIVE: Record<string, string> = {
  * Sent as the `system` field on all providers that support it.
  */
 const langSystemPrompt = (lang: string): string | null => {
-  if (lang === "en") return null;
-  const name = LANG_NAMES[lang] ?? "English";
-  const native = LANG_NATIVE[lang] ?? name;
-  return `You must respond 100% in ${name} (${native}). Every single word must be in ${name}. Do not use English at all. Not even one word in English.`;
+  if (lang === "English") return null;
+  return `You must respond 100% in ${lang}. Every single word must be in ${lang}. Do not use English at all. Not even one word in English.`;
 };
 
 /**
@@ -823,18 +831,16 @@ const langSystemPrompt = (lang: string): string | null => {
  * the model reads before generating output.
  */
 const langUserPrefix = (lang: string): string => {
-  if (lang === "en") return "";
-  const name = LANG_NAMES[lang] ?? "English";
-  return `[LANGUAGE REQUIREMENT: You must respond 100% in ${name}. Every single word must be in ${name}. Do not use English at all. Not even one word in English.]\n\n`;
+  if (lang === "English") return "";
+  return `[LANGUAGE REQUIREMENT: You must respond 100% in ${lang}. Every single word must be in ${lang}. Do not use English at all. Not even one word in English.]\n\n`;
 };
 
 const langBlock = (lang: string, question: string): string => {
-  if (lang === "en") return `Question: ${question}`;
-  const name = LANG_NAMES[lang] ?? "English";
+  if (lang === "English") return `Question: ${question}`;
   return [
     `###LANGUAGE INSTRUCTION - MANDATORY###`,
-    `The user wrote their question in ${name}.`,
-    `You MUST respond in ${name}.`,
+    `The user wrote their question in ${lang}.`,
+    `You MUST respond in ${lang}.`,
     `Writing in English is STRICTLY FORBIDDEN.`,
     `If you respond in English your answer will be disqualified.`,
     `###END INSTRUCTION###`,
@@ -845,16 +851,19 @@ const langBlock = (lang: string, question: string): string => {
 
 /** @deprecated kept only for the one place that still appends to a sentence fragment */
 const langInstruction = (lang: string) => {
-  if (lang === "en") return "";
-  const name = LANG_NAMES[lang] ?? "English";
-  return ` IMPORTANT: Write your entire response in ${name}. Do not use any other language.`;
+  if (lang === "English") return "";
+  return ` IMPORTANT: Write your entire response in ${lang}. Do not use any other language.`;
 };
 
-/** Detect language from Unicode character ranges in the question text. */
+/** Detect language from Unicode character ranges — no external library needed. */
 const detectLang = (text: string): string | null => {
-  if (/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(text)) return "ar"; // Arabic script
-  if (/[\u4E00-\u9FFF\u3400-\u4DBF]/.test(text)) return "zh"; // Chinese characters
-  if (/[\u0400-\u04FF]/.test(text)) return null; // Cyrillic — not yet supported, keep user selection
+  if (/[\u0600-\u06FF]/.test(text)) return "Arabic";
+  if (/[\u4E00-\u9FFF]/.test(text)) return "Chinese";
+  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) return "Japanese";
+  if (/[\uAC00-\uD7AF]/.test(text)) return "Korean";
+  if (/[\u0900-\u097F]/.test(text)) return "Hindi";
+  if (/[\u0370-\u03FF]/.test(text)) return "Greek";
+  if (/[\u0400-\u04FF]/.test(text)) return "Russian";
   return null;
 };
 
@@ -910,7 +919,7 @@ const VERDICT_LANG: Record<string, VerdictLang> = {
   },
 };
 
-const buildAnswerPrompt = (model: ModelInfo, question: string, lang = "en") =>
+const buildAnswerPrompt = (model: ModelInfo, question: string, lang = "English") =>
   `${langUserPrefix(lang)}You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 150 words.\n\n${langBlock(lang, question)}`;
 
 const buildCritiquePromptText = (
@@ -918,7 +927,7 @@ const buildCritiquePromptText = (
   question: string,
   answer: string,
   allAnswers: string,
-  lang = "en",
+  lang = "English",
 ) =>
   [
     `${langUserPrefix(lang)}You are ${model.displayName} in Selfbeat's self-criticism round.`,
@@ -934,8 +943,8 @@ const buildCritiquePromptText = (
     allAnswers,
     ``,
     `Write your self-criticism in 2–3 sentences: what you got right, what you missed, which other AI did better and why.`,
-    lang !== "en"
-      ? `${langUserPrefix(lang)}Write the critique text above entirely in ${LANG_NAMES[lang] ?? lang}. ONLY the final score line below must keep this exact English format (the parser requires it): "Accuracy score: X/10. Self-awareness score: Y/10."`
+    lang !== "English"
+      ? `${langUserPrefix(lang)}Write the critique text above entirely in ${lang}. ONLY the final score line below must keep this exact English format (the parser requires it): "Accuracy score: X/10. Self-awareness score: Y/10."`
       : `End with exactly this format on its own line: "Accuracy score: X/10. Self-awareness score: Y/10."`,
     `Keep it under 120 words total.`,
   ].join("\n");
@@ -1001,7 +1010,7 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
   emit("meta", { limited: isLimited, free: isFreeDemo });
 
   const question = parsed.data.question.trim();
-  const userLang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
+  const userLang = typeof req.body?.lang === "string" ? (LANG_NAMES[req.body.lang] ?? "English") : "English";
   const lang = detectLang(question) ?? userLang;
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
   const isMedical = isMedicalQuestion(question);
@@ -1205,7 +1214,7 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
 
     const [insights, physicianNote] = await Promise.all([insightsPromise, physicianPromise]);
 
-    const vl = VERDICT_LANG[lang] ?? VERDICT_LANG["en"];
+    const vl = VERDICT_LANG[LANG_NAME_TO_CODE[lang] ?? "en"] ?? VERDICT_LANG["en"];
     const verdictDetails = {
       summary: vl.summary(winner.displayName),
       bestAnswer: vl.bestAnswer(winner.displayName),
@@ -1282,7 +1291,7 @@ router.post("/selfbeat/comparisons", async (req, res) => {
   }
 
   const question = parsed.data.question.trim();
-  const userLang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
+  const userLang = typeof req.body?.lang === "string" ? (LANG_NAMES[req.body.lang] ?? "English") : "English";
   const lang = detectLang(question) ?? userLang;
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
 

@@ -156274,7 +156274,7 @@ var fallbackCriticism = (model) => {
   const others = "Claude, ChatGPT, Gemini, Grok, Mistral, Llama, Perplexity, Cohere, Qwen, and Microsoft Copilot".replace(new RegExp(`${model.displayName},?\\s?`), "").trim();
   return `I gave a usable answer, but I may have stayed too broad because the live provider was unavailable. I covered the main structure but did not fully benchmark my claims against the other models (${others}). Honest score: 7.0/10.`;
 };
-async function generatePhysicianNote(question, answers, lang = "en") {
+async function generatePhysicianNote(question, answers, lang = "English") {
   try {
     const { anthropic: anthropic2 } = await Promise.resolve().then(() => (init_src3(), src_exports2));
     const prompt = [
@@ -156502,8 +156502,8 @@ var detectGenericResponse = (answer, question, status) => {
   const matchCount = questionWords.filter((w) => answerLower.includes(w)).length;
   return matchCount / questionWords.length < 0.25;
 };
-async function generateVerdictInsights(question, answers, lang = "en") {
-  const vl = VERDICT_LANG[lang] ?? VERDICT_LANG["en"];
+async function generateVerdictInsights(question, answers, lang = "English") {
+  const vl = VERDICT_LANG[LANG_NAME_TO_CODE[lang] ?? "en"] ?? VERDICT_LANG["en"];
   const fallback = {
     agreementPoints: vl.insightFallbackAgree,
     disagreementPoints: vl.insightFallbackDisagree
@@ -156511,7 +156511,7 @@ async function generateVerdictInsights(question, answers, lang = "en") {
   try {
     const { openai: openai4 } = await Promise.resolve().then(() => (init_src2(), src_exports));
     const summary = answers.map(({ displayName, answer }) => `${displayName}: ${answer.slice(0, 200)}`).join("\n\n");
-    const langName = LANG_NAMES[lang] ?? "English";
+    const langName = lang;
     const sys = langSystemPrompt(lang);
     const prompt = [
       `${langUserPrefix(lang)}Ten AI models answered this question: "${question}"`,
@@ -156523,7 +156523,7 @@ async function generateVerdictInsights(question, answers, lang = "en") {
       `1. Three specific points where the models genuinely agreed (reference actual content, not generic statements).`,
       `2. Two or three specific points where they genuinely differed (reference actual differences in content, tone, or emphasis).`,
       ``,
-      lang !== "en" ? `Write the entire verdict in ${langName}. Every single word must be in ${langName}. Do not use English at all.` : ``,
+      lang !== "English" ? `Write the entire verdict in ${langName}. Every single word must be in ${langName}. Do not use English at all.` : ``,
       `Respond in this exact JSON format with no extra text (write the string values in ${langName}):`,
       `{"agreementPoints":["...", "...", "..."],"disagreementPoints":["...", "..."]}`
     ].join("\n");
@@ -156547,7 +156547,7 @@ async function generateVerdictInsights(question, answers, lang = "en") {
     return fallback;
   }
 }
-async function createComparison(question, mode, lang = "en") {
+async function createComparison(question, mode, lang = "English") {
   const isMedical = isMedicalQuestion(question);
   const langSys = langSystemPrompt(lang);
   const answerPrompt = (model) => `${langUserPrefix(lang)}You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 220 words.
@@ -156680,7 +156680,7 @@ Question: ${question}`;
   const winner = [...secondRound].sort((a, b) => b.score - a.score)[0] ?? secondRound[0];
   const answerPayload = secondRound.filter((r2) => !r2.isGeneric).map((r2) => ({ displayName: r2.displayName, answer: r2.answer }));
   const insights = await generateVerdictInsights(question, answerPayload.length > 0 ? answerPayload : secondRound.map((r2) => ({ displayName: r2.displayName, answer: r2.answer })), lang);
-  const vl = VERDICT_LANG[lang] ?? VERDICT_LANG["en"];
+  const vl = VERDICT_LANG[LANG_NAME_TO_CODE[lang] ?? "en"] ?? VERDICT_LANG["en"];
   const verdictDetails = {
     summary: vl.summary(winner.displayName),
     bestAnswer: vl.bestAnswer(winner.displayName),
@@ -156722,34 +156722,30 @@ var LANG_NAMES = {
   it: "Italian",
   es: "Spanish"
 };
-var LANG_NATIVE = {
-  en: "English",
-  fr: "Fran\xE7ais",
-  ar: "\u0627\u0644\u0639\u0631\u0628\u064A\u0629",
-  zh: "\u4E2D\u6587",
-  it: "Italiano",
-  es: "Espa\xF1ol"
+var LANG_NAME_TO_CODE = {
+  English: "en",
+  French: "fr",
+  Arabic: "ar",
+  Chinese: "zh",
+  Italian: "it",
+  Spanish: "es"
 };
 var langSystemPrompt = (lang) => {
-  if (lang === "en") return null;
-  const name = LANG_NAMES[lang] ?? "English";
-  const native = LANG_NATIVE[lang] ?? name;
-  return `You must respond 100% in ${name} (${native}). Every single word must be in ${name}. Do not use English at all. Not even one word in English.`;
+  if (lang === "English") return null;
+  return `You must respond 100% in ${lang}. Every single word must be in ${lang}. Do not use English at all. Not even one word in English.`;
 };
 var langUserPrefix = (lang) => {
-  if (lang === "en") return "";
-  const name = LANG_NAMES[lang] ?? "English";
-  return `[LANGUAGE REQUIREMENT: You must respond 100% in ${name}. Every single word must be in ${name}. Do not use English at all. Not even one word in English.]
+  if (lang === "English") return "";
+  return `[LANGUAGE REQUIREMENT: You must respond 100% in ${lang}. Every single word must be in ${lang}. Do not use English at all. Not even one word in English.]
 
 `;
 };
 var langBlock = (lang, question) => {
-  if (lang === "en") return `Question: ${question}`;
-  const name = LANG_NAMES[lang] ?? "English";
+  if (lang === "English") return `Question: ${question}`;
   return [
     `###LANGUAGE INSTRUCTION - MANDATORY###`,
-    `The user wrote their question in ${name}.`,
-    `You MUST respond in ${name}.`,
+    `The user wrote their question in ${lang}.`,
+    `You MUST respond in ${lang}.`,
     `Writing in English is STRICTLY FORBIDDEN.`,
     `If you respond in English your answer will be disqualified.`,
     `###END INSTRUCTION###`,
@@ -156758,9 +156754,13 @@ var langBlock = (lang, question) => {
   ].join("\n");
 };
 var detectLang = (text2) => {
-  if (/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(text2)) return "ar";
-  if (/[\u4E00-\u9FFF\u3400-\u4DBF]/.test(text2)) return "zh";
-  if (/[\u0400-\u04FF]/.test(text2)) return null;
+  if (/[\u0600-\u06FF]/.test(text2)) return "Arabic";
+  if (/[\u4E00-\u9FFF]/.test(text2)) return "Chinese";
+  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(text2)) return "Japanese";
+  if (/[\uAC00-\uD7AF]/.test(text2)) return "Korean";
+  if (/[\u0900-\u097F]/.test(text2)) return "Hindi";
+  if (/[\u0370-\u03FF]/.test(text2)) return "Greek";
+  if (/[\u0400-\u04FF]/.test(text2)) return "Russian";
   return null;
 };
 var VERDICT_LANG = {
@@ -156807,10 +156807,10 @@ var VERDICT_LANG = {
     insightFallbackDisagree: ["Los modelos difer\xEDan en cu\xE1nto contexto incluir.", "Ponderaron la claridad, la cautela y la exhaustividad de forma diferente."]
   }
 };
-var buildAnswerPrompt = (model, question, lang = "en") => `${langUserPrefix(lang)}You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 150 words.
+var buildAnswerPrompt = (model, question, lang = "English") => `${langUserPrefix(lang)}You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 150 words.
 
 ${langBlock(lang, question)}`;
-var buildCritiquePromptText = (model, question, answer, allAnswers, lang = "en") => [
+var buildCritiquePromptText = (model, question, answer, allAnswers, lang = "English") => [
   `${langUserPrefix(lang)}You are ${model.displayName} in Selfbeat's self-criticism round.`,
   `Be genuinely honest and critical \u2014 do not give yourself an inflated score.`,
   `Scores must reflect real quality differences. A mediocre answer is a 5\u20136, a good answer is a 7\u20138, an excellent answer is 9\u201310.`,
@@ -156824,7 +156824,7 @@ var buildCritiquePromptText = (model, question, answer, allAnswers, lang = "en")
   allAnswers,
   ``,
   `Write your self-criticism in 2\u20133 sentences: what you got right, what you missed, which other AI did better and why.`,
-  lang !== "en" ? `${langUserPrefix(lang)}Write the critique text above entirely in ${LANG_NAMES[lang] ?? lang}. ONLY the final score line below must keep this exact English format (the parser requires it): "Accuracy score: X/10. Self-awareness score: Y/10."` : `End with exactly this format on its own line: "Accuracy score: X/10. Self-awareness score: Y/10."`,
+  lang !== "English" ? `${langUserPrefix(lang)}Write the critique text above entirely in ${lang}. ONLY the final score line below must keep this exact English format (the parser requires it): "Accuracy score: X/10. Self-awareness score: Y/10."` : `End with exactly this format on its own line: "Accuracy score: X/10. Self-awareness score: Y/10."`,
   `Keep it under 120 words total.`
 ].join("\n");
 var buildVerdictStr = (responses, verdictDetails) => `Accuracy scores: ${responses.map((r2) => `${r2.displayName} ${r2.accuracyScore}/10`).join(", ")}. Self-awareness scores: ${responses.map((r2) => `${r2.displayName} ${r2.selfAwarenessScore}/10`).join(", ")}. Best answer: ${verdictDetails.bestAnswer} Clearest answer for the general public: ${verdictDetails.clearestAnswer}. Key agreements: ${verdictDetails.agreementPoints.join(" ")} Key disagreements: ${verdictDetails.disagreementPoints.join(" ")} Overall winner: ${verdictDetails.overallWinner}. ${verdictDetails.explanation}`;
@@ -156870,7 +156870,7 @@ data: ${JSON.stringify(data)}
   }
   emit("meta", { limited: isLimited, free: isFreeDemo });
   const question = parsed.data.question.trim();
-  const userLang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
+  const userLang = typeof req.body?.lang === "string" ? LANG_NAMES[req.body.lang] ?? "English" : "English";
   const lang = detectLang(question) ?? userLang;
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
   const isMedical = isMedicalQuestion(question);
@@ -157029,7 +157029,7 @@ data: ${JSON.stringify(data)}
     emit("status", { phase: "verdict", message: "Round 3: Calculating final verdict..." });
     const winner = [...secondRound].sort((a, b) => b.score - a.score)[0] ?? secondRound[0];
     const [insights, physicianNote] = await Promise.all([insightsPromise, physicianPromise]);
-    const vl = VERDICT_LANG[lang] ?? VERDICT_LANG["en"];
+    const vl = VERDICT_LANG[LANG_NAME_TO_CODE[lang] ?? "en"] ?? VERDICT_LANG["en"];
     const verdictDetails = {
       summary: vl.summary(winner.displayName),
       bestAnswer: vl.bestAnswer(winner.displayName),
@@ -157094,7 +157094,7 @@ router5.post("/selfbeat/comparisons", async (req, res) => {
     return;
   }
   const question = parsed.data.question.trim();
-  const userLang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
+  const userLang = typeof req.body?.lang === "string" ? LANG_NAMES[req.body.lang] ?? "English" : "English";
   const lang = detectLang(question) ?? userLang;
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
   try {
