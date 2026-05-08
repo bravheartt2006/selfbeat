@@ -84,7 +84,10 @@ router.post("/me", requireAuth, async (req: any, res) => {
     let user = existing[0];
     let deviceCreditBlocked = false;
 
-    if (fingerprint) {
+    // Admin is exempt from fingerprint fraud detection
+    const isAdmin = !!(user.email && process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL);
+
+    if (fingerprint && !isAdmin) {
       const otherAccounts = await db
         .select({ userId: selfbeatFingerprintsTable.userId })
         .from(selfbeatFingerprintsTable)
@@ -113,8 +116,8 @@ router.post("/me", requireAuth, async (req: any, res) => {
     maybeFireTrialEmails(user).catch(() => {});
 
     const isUnlimited =
-      user.hasUnlimited &&
-      (!user.unlimitedUntil || user.unlimitedUntil > new Date());
+      isAdmin ||
+      (user.hasUnlimited && (!user.unlimitedUntil || user.unlimitedUntil > new Date()));
 
     return res.json({
       ...user,
@@ -148,9 +151,10 @@ router.get(
       // Fire trial emails opportunistically
       maybeFireTrialEmails(user).catch(() => {});
 
+      const isAdmin = !!(user.email && process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL);
       const isUnlimited =
-        user.hasUnlimited &&
-        (!user.unlimitedUntil || user.unlimitedUntil > new Date());
+        isAdmin ||
+        (user.hasUnlimited && (!user.unlimitedUntil || user.unlimitedUntil > new Date()));
 
       return res.json({
         credits: user.credits,

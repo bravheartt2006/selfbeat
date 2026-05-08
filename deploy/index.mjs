@@ -156141,6 +156141,9 @@ function normalizeFreeQuestion(q) {
 async function checkAndDeductCredit(userId) {
   const [user] = await db.select().from(selfbeatUsersTable).where(eq(selfbeatUsersTable.id, userId)).limit(1);
   if (!user) return false;
+  if (user.email && process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL) {
+    return true;
+  }
   const now = /* @__PURE__ */ new Date();
   const hasUnlimited = user.hasUnlimited && (!user.unlimitedUntil || user.unlimitedUntil > now);
   if (hasUnlimited) return true;
@@ -157293,7 +157296,8 @@ router6.post("/me", requireAuth, async (req, res) => {
     }
     let user = existing[0];
     let deviceCreditBlocked = false;
-    if (fingerprint) {
+    const isAdmin = !!(user.email && process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL);
+    if (fingerprint && !isAdmin) {
       const otherAccounts = await db.select({ userId: selfbeatFingerprintsTable.userId }).from(selfbeatFingerprintsTable).where(
         sql`${selfbeatFingerprintsTable.fingerprintId} = ${fingerprint}
               AND ${selfbeatFingerprintsTable.userId} != ${userId}`
@@ -157307,7 +157311,7 @@ router6.post("/me", requireAuth, async (req, res) => {
     }
     maybeFireTrialEmails(user).catch(() => {
     });
-    const isUnlimited = user.hasUnlimited && (!user.unlimitedUntil || user.unlimitedUntil > /* @__PURE__ */ new Date());
+    const isUnlimited = isAdmin || user.hasUnlimited && (!user.unlimitedUntil || user.unlimitedUntil > /* @__PURE__ */ new Date());
     return res.json({
       ...user,
       isUnlimited,
@@ -157331,7 +157335,8 @@ router6.get(
       const user = rows[0];
       maybeFireTrialEmails(user).catch(() => {
       });
-      const isUnlimited = user.hasUnlimited && (!user.unlimitedUntil || user.unlimitedUntil > /* @__PURE__ */ new Date());
+      const isAdmin = !!(user.email && process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL);
+      const isUnlimited = isAdmin || user.hasUnlimited && (!user.unlimitedUntil || user.unlimitedUntil > /* @__PURE__ */ new Date());
       return res.json({
         credits: user.credits,
         isUnlimited,

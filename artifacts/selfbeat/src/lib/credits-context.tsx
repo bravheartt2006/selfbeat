@@ -112,7 +112,7 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
       return;
     }
     setCredits(user.credits);
-    setIsUnlimited(user.isUnlimited);
+    setIsUnlimited(user.isUnlimited || user.isAdmin);
     applyTrialData({
       isOnActiveTrial: user.isOnActiveTrial,
       trialEndDate: user.trialEndDate,
