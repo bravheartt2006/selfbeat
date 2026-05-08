@@ -156516,9 +156516,9 @@ async function generateVerdictInsights(question, answers, lang = "en") {
     return fallback;
   }
 }
-async function createComparison(question, mode) {
+async function createComparison(question, mode, lang = "en") {
   const isMedical = isMedicalQuestion(question);
-  const answerPrompt = (model) => `You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 220 words.
+  const answerPrompt = (model) => `You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 220 words.${langInstruction(lang)}
 
 Question: ${question}`;
   const firstRound = await Promise.all(
@@ -156596,8 +156596,9 @@ Question: ${question}`;
         `All AI answers for comparison:`,
         allAnswers,
         ``,
-        `Write your self-criticism in 2\u20133 sentences: what you got right, what you missed, which other AI did better and why.`,
+        `Write your self-criticism in 2\u20133 sentences: what you got right, what you missed, which other AI did better and why.${langInstruction(lang)}`,
         `End with exactly this format on its own line: "Accuracy score: X/10. Self-awareness score: Y/10."`,
+        `CRITICAL: The final score line MUST always be written in English in exactly that format, even if the rest of your response is in another language. The score parser only reads English.`,
         `Keep it under 120 words total.`
       ].join("\n");
       try {
@@ -156646,21 +156647,22 @@ Question: ${question}`;
   );
   const winner = [...secondRound].sort((a, b) => b.score - a.score)[0] ?? secondRound[0];
   const answerPayload = secondRound.filter((r2) => !r2.isGeneric).map((r2) => ({ displayName: r2.displayName, answer: r2.answer }));
-  const insights = await generateVerdictInsights(question, answerPayload.length > 0 ? answerPayload : secondRound.map((r2) => ({ displayName: r2.displayName, answer: r2.answer })));
+  const insights = await generateVerdictInsights(question, answerPayload.length > 0 ? answerPayload : secondRound.map((r2) => ({ displayName: r2.displayName, answer: r2.answer })), lang);
+  const vl = VERDICT_LANG[lang] ?? VERDICT_LANG["en"];
   const verdictDetails = {
-    summary: `${winner.displayName} produced the strongest combined performance for this question, with the highest score across accuracy and self-awareness.`,
-    bestAnswer: `${winner.displayName} gave the best answer because it earned the highest combined score.`,
+    summary: vl.summary(winner.displayName),
+    bestAnswer: vl.bestAnswer(winner.displayName),
     clearestAnswer: secondRound.find((response) => response.model === "gemini")?.displayName ?? winner.displayName,
     agreementPoints: insights.agreementPoints,
     disagreementPoints: insights.disagreementPoints,
     overallWinner: winner.displayName,
-    explanation: `${winner.displayName} wins with a score of ${winner.score}/10 \u2014 the highest across all 10 models for this question.`
+    explanation: vl.explanation(winner.displayName, String(winner.score))
   };
   const verdict = `Accuracy scores: ${secondRound.map((response) => `${response.displayName} ${response.accuracyScore}/10`).join(", ")}. Self-awareness scores: ${secondRound.map((response) => `${response.displayName} ${response.selfAwarenessScore}/10`).join(", ")}. Best answer: ${verdictDetails.bestAnswer} Clearest answer for the general public: ${verdictDetails.clearestAnswer}. Key agreements: ${verdictDetails.agreementPoints.join(" ")} Key disagreements: ${verdictDetails.disagreementPoints.join(" ")} Overall winner: ${verdictDetails.overallWinner}. ${verdictDetails.explanation}`;
   const allLive = secondRound.every((response) => response.status === "success");
   const allFallback = secondRound.every((response) => response.status === "fallback");
   const answersForPhysician = secondRound.map((r2) => `${r2.displayName}: ${r2.answer}`).join("\n\n");
-  const physicianNote = isMedical ? await generatePhysicianNote(question, answersForPhysician) : void 0;
+  const physicianNote = isMedical ? await generatePhysicianNote(question, answersForPhysician, lang) : void 0;
   return {
     id: randomUUID3(),
     question,
@@ -156692,6 +156694,12 @@ var langInstruction = (lang) => {
   const name = LANG_NAMES[lang] ?? "English";
   if (lang === "en") return "";
   return ` IMPORTANT: Write your entire response in ${name}. Do not use any other language.`;
+};
+var detectLang = (text2) => {
+  if (/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(text2)) return "ar";
+  if (/[\u4E00-\u9FFF\u3400-\u4DBF]/.test(text2)) return "zh";
+  if (/[\u0400-\u04FF]/.test(text2)) return null;
+  return null;
 };
 var VERDICT_LANG = {
   en: {
@@ -156755,6 +156763,7 @@ var buildCritiquePromptText = (model, question, answer, allAnswers, lang = "en")
   ``,
   `Write your self-criticism in 2\u20133 sentences: what you got right, what you missed, which other AI did better and why.`,
   `End with exactly this format on its own line: "Accuracy score: X/10. Self-awareness score: Y/10."`,
+  `CRITICAL: The final score line MUST always be written in English in exactly that format, even if the rest of your response is in another language. The score parser only reads English.`,
   `Keep it under 120 words total.`
 ].join("\n");
 var buildVerdictStr = (responses, verdictDetails) => `Accuracy scores: ${responses.map((r2) => `${r2.displayName} ${r2.accuracyScore}/10`).join(", ")}. Self-awareness scores: ${responses.map((r2) => `${r2.displayName} ${r2.selfAwarenessScore}/10`).join(", ")}. Best answer: ${verdictDetails.bestAnswer} Clearest answer for the general public: ${verdictDetails.clearestAnswer}. Key agreements: ${verdictDetails.agreementPoints.join(" ")} Key disagreements: ${verdictDetails.disagreementPoints.join(" ")} Overall winner: ${verdictDetails.overallWinner}. ${verdictDetails.explanation}`;
@@ -156800,7 +156809,8 @@ data: ${JSON.stringify(data)}
   }
   emit("meta", { limited: isLimited, free: isFreeDemo });
   const question = parsed.data.question.trim();
-  const lang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
+  const userLang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
+  const lang = detectLang(question) ?? userLang;
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
   const isMedical = isMedicalQuestion(question);
   try {
@@ -157021,7 +157031,8 @@ router5.post("/selfbeat/comparisons", async (req, res) => {
     return;
   }
   const question = parsed.data.question.trim();
-  const lang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
+  const userLang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
+  const lang = detectLang(question) ?? userLang;
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
   try {
     const cached2 = await db.query.selfbeatComparisonsTable.findFirst({
@@ -157036,7 +157047,7 @@ router5.post("/selfbeat/comparisons", async (req, res) => {
       return;
     }
     const result = CreateSelfbeatComparisonResponse.parse(
-      await createComparison(question, parsed.data.mode)
+      await createComparison(question, parsed.data.mode, lang)
     );
     await db.insert(selfbeatComparisonsTable).values({
       id: result.id,

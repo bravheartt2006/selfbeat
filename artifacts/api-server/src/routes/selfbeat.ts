@@ -536,11 +536,11 @@ async function generateVerdictInsights(
   }
 }
 
-async function createComparison(question: string, mode: "live" | "mock") {
+async function createComparison(question: string, mode: "live" | "mock", lang = "en") {
   const isMedical = isMedicalQuestion(question);
 
   const answerPrompt = (model: ModelInfo) =>
-    `You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 220 words.\n\nQuestion: ${question}`;
+    `You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 220 words.${langInstruction(lang)}\n\nQuestion: ${question}`;
 
   const firstRound = await Promise.all(
     models.map(async (model) => {
@@ -627,8 +627,9 @@ async function createComparison(question: string, mode: "live" | "mock") {
         `All AI answers for comparison:`,
         allAnswers,
         ``,
-        `Write your self-criticism in 2–3 sentences: what you got right, what you missed, which other AI did better and why.`,
+        `Write your self-criticism in 2–3 sentences: what you got right, what you missed, which other AI did better and why.${langInstruction(lang)}`,
         `End with exactly this format on its own line: "Accuracy score: X/10. Self-awareness score: Y/10."`,
+        `CRITICAL: The final score line MUST always be written in English in exactly that format, even if the rest of your response is in another language. The score parser only reads English.`,
         `Keep it under 120 words total.`,
       ].join("\n");
 
@@ -695,18 +696,19 @@ async function createComparison(question: string, mode: "live" | "mock") {
   const answerPayload = secondRound
     .filter((r) => !r.isGeneric)
     .map((r) => ({ displayName: r.displayName, answer: r.answer }));
-  const insights = await generateVerdictInsights(question, answerPayload.length > 0 ? answerPayload : secondRound.map((r) => ({ displayName: r.displayName, answer: r.answer })));
+  const insights = await generateVerdictInsights(question, answerPayload.length > 0 ? answerPayload : secondRound.map((r) => ({ displayName: r.displayName, answer: r.answer })), lang);
 
+  const vl = VERDICT_LANG[lang] ?? VERDICT_LANG["en"];
   const verdictDetails = {
-    summary: `${winner.displayName} produced the strongest combined performance for this question, with the highest score across accuracy and self-awareness.`,
-    bestAnswer: `${winner.displayName} gave the best answer because it earned the highest combined score.`,
+    summary: vl.summary(winner.displayName),
+    bestAnswer: vl.bestAnswer(winner.displayName),
     clearestAnswer:
       secondRound.find((response) => response.model === "gemini")?.displayName ??
       winner.displayName,
     agreementPoints: insights.agreementPoints,
     disagreementPoints: insights.disagreementPoints,
     overallWinner: winner.displayName,
-    explanation: `${winner.displayName} wins with a score of ${winner.score}/10 — the highest across all 10 models for this question.`,
+    explanation: vl.explanation(winner.displayName, String(winner.score)),
   };
 
   const verdict = `Accuracy scores: ${secondRound
@@ -723,7 +725,7 @@ async function createComparison(question: string, mode: "live" | "mock") {
     .join("\n\n");
 
   const physicianNote = isMedical
-    ? await generatePhysicianNote(question, answersForPhysician)
+    ? await generatePhysicianNote(question, answersForPhysician, lang)
     : undefined;
 
   return {
@@ -765,6 +767,14 @@ const langInstruction = (lang: string) => {
   const name = LANG_NAMES[lang] ?? "English";
   if (lang === "en") return "";
   return ` IMPORTANT: Write your entire response in ${name}. Do not use any other language.`;
+};
+
+/** Detect language from Unicode character ranges in the question text. */
+const detectLang = (text: string): string | null => {
+  if (/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(text)) return "ar"; // Arabic script
+  if (/[\u4E00-\u9FFF\u3400-\u4DBF]/.test(text)) return "zh"; // Chinese characters
+  if (/[\u0400-\u04FF]/.test(text)) return null; // Cyrillic — not yet supported, keep user selection
+  return null;
 };
 
 type VerdictLang = {
@@ -844,6 +854,7 @@ const buildCritiquePromptText = (
     ``,
     `Write your self-criticism in 2–3 sentences: what you got right, what you missed, which other AI did better and why.`,
     `End with exactly this format on its own line: "Accuracy score: X/10. Self-awareness score: Y/10."`,
+    `CRITICAL: The final score line MUST always be written in English in exactly that format, even if the rest of your response is in another language. The score parser only reads English.`,
     `Keep it under 120 words total.`,
   ].join("\n");
 
@@ -908,7 +919,8 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
   emit("meta", { limited: isLimited, free: isFreeDemo });
 
   const question = parsed.data.question.trim();
-  const lang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
+  const userLang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
+  const lang = detectLang(question) ?? userLang;
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
   const isMedical = isMedicalQuestion(question);
 
@@ -1186,7 +1198,8 @@ router.post("/selfbeat/comparisons", async (req, res) => {
   }
 
   const question = parsed.data.question.trim();
-  const lang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
+  const userLang = typeof req.body?.lang === "string" && req.body.lang in LANG_NAMES ? req.body.lang : "en";
+  const lang = detectLang(question) ?? userLang;
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
 
   try {
@@ -1204,7 +1217,7 @@ router.post("/selfbeat/comparisons", async (req, res) => {
     }
 
     const result = CreateSelfbeatComparisonResponse.parse(
-      await createComparison(question, parsed.data.mode),
+      await createComparison(question, parsed.data.mode, lang),
     );
 
     await db.insert(selfbeatComparisonsTable).values({
