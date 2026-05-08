@@ -1011,7 +1011,9 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
 
   const question = parsed.data.question.trim();
   const userLang = typeof req.body?.lang === "string" ? (LANG_NAMES[req.body.lang] ?? "English") : "English";
-  const lang = detectLang(question) ?? userLang;
+  const detected = detectLang(question);
+  const lang = detected ?? userLang;
+  req.log.info({ detected, userLang, lang, question: question.slice(0, 80) }, "Language detection");
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
   const isMedical = isMedicalQuestion(question);
 
@@ -1292,7 +1294,9 @@ router.post("/selfbeat/comparisons", async (req, res) => {
 
   const question = parsed.data.question.trim();
   const userLang = typeof req.body?.lang === "string" ? (LANG_NAMES[req.body.lang] ?? "English") : "English";
-  const lang = detectLang(question) ?? userLang;
+  const detected = detectLang(question);
+  const lang = detected ?? userLang;
+  req.log.info({ detected, userLang, lang, question: question.slice(0, 80) }, "Language detection");
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
 
   try {
