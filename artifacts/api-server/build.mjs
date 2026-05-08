@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
-import { rm } from "node:fs/promises";
+import { rm, readFile, writeFile, readdir } from "node:fs/promises";
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
@@ -117,6 +117,26 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
     },
   });
+
+  // Patch the pino worker path: esbuild-plugin-pino bakes in the build-time
+  // absolute outputDir (e.g. /home/runner/workspace/...) which breaks on
+  // Railway or any other host. Replace it with __dirname (set at runtime
+  // by the banner in index.mjs, or by the standard CJS __dirname in workers).
+  const distFiles = (await readdir(distDir)).filter((f) => f.endsWith(".mjs"));
+  for (const file of distFiles) {
+    const filePath = path.resolve(distDir, file);
+    let src = await readFile(filePath, "utf8");
+    const before = src;
+    // Match: const outputDir = "/any/absolute/path";
+    src = src.replace(
+      /const outputDir = "\/[^"]+";/g,
+      'const outputDir = (typeof globalThis !== "undefined" && globalThis.__dirname) ? globalThis.__dirname : __dirname;'
+    );
+    if (src !== before) {
+      await writeFile(filePath, src, "utf8");
+      console.log(`✓ Patched pino worker path in ${file}`);
+    }
+  }
 }
 
 buildAll().catch((err) => {
