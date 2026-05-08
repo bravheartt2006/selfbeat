@@ -5,5 +5,6 @@
   "type": "module",
   "scripts": {
     "start": "node index.mjs"
-  }
+  },
+  "buildTimestamp": "2026-05-08T18:00:00Z"
 }
