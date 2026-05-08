@@ -156739,10 +156739,23 @@ var langSystemPrompt = (lang) => {
 var langUserPrefix = (lang) => {
   if (lang === "en") return "";
   const name = LANG_NAMES[lang] ?? "English";
-  const native = LANG_NATIVE[lang] ?? name;
-  return `[LANGUAGE REQUIREMENT: You must respond 100% in ${name} (${native}). Every single word must be in ${name}. Do not use English at all. Not even one word in English.]
+  return `[LANGUAGE REQUIREMENT: You must respond 100% in ${name}. Every single word must be in ${name}. Do not use English at all. Not even one word in English.]
 
 `;
+};
+var langBlock = (lang, question) => {
+  if (lang === "en") return `Question: ${question}`;
+  const name = LANG_NAMES[lang] ?? "English";
+  return [
+    `###LANGUAGE INSTRUCTION - MANDATORY###`,
+    `The user wrote their question in ${name}.`,
+    `You MUST respond in ${name}.`,
+    `Writing in English is STRICTLY FORBIDDEN.`,
+    `If you respond in English your answer will be disqualified.`,
+    `###END INSTRUCTION###`,
+    ``,
+    `Question: ${question}`
+  ].join("\n");
 };
 var detectLang = (text2) => {
   if (/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(text2)) return "ar";
@@ -156796,13 +156809,13 @@ var VERDICT_LANG = {
 };
 var buildAnswerPrompt = (model, question, lang = "en") => `${langUserPrefix(lang)}You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 150 words.
 
-Question: ${question}`;
+${langBlock(lang, question)}`;
 var buildCritiquePromptText = (model, question, answer, allAnswers, lang = "en") => [
   `${langUserPrefix(lang)}You are ${model.displayName} in Selfbeat's self-criticism round.`,
   `Be genuinely honest and critical \u2014 do not give yourself an inflated score.`,
   `Scores must reflect real quality differences. A mediocre answer is a 5\u20136, a good answer is a 7\u20138, an excellent answer is 9\u201310.`,
   ``,
-  `User question: ${question}`,
+  langBlock(lang, question),
   ``,
   `Your answer:`,
   answer,

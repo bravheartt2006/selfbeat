@@ -818,14 +818,29 @@ const langSystemPrompt = (lang: string): string | null => {
 };
 
 /**
- * Prominent prefix prepended to the top of every user-role message.
- * Redundant with the system prompt for models that de-prioritise system messages.
+ * Aggressive mandatory language block injected directly before the question
+ * in every user-role message. Placed last so it's the final instruction
+ * the model reads before generating output.
  */
 const langUserPrefix = (lang: string): string => {
   if (lang === "en") return "";
   const name = LANG_NAMES[lang] ?? "English";
-  const native = LANG_NATIVE[lang] ?? name;
-  return `[LANGUAGE REQUIREMENT: You must respond 100% in ${name} (${native}). Every single word must be in ${name}. Do not use English at all. Not even one word in English.]\n\n`;
+  return `[LANGUAGE REQUIREMENT: You must respond 100% in ${name}. Every single word must be in ${name}. Do not use English at all. Not even one word in English.]\n\n`;
+};
+
+const langBlock = (lang: string, question: string): string => {
+  if (lang === "en") return `Question: ${question}`;
+  const name = LANG_NAMES[lang] ?? "English";
+  return [
+    `###LANGUAGE INSTRUCTION - MANDATORY###`,
+    `The user wrote their question in ${name}.`,
+    `You MUST respond in ${name}.`,
+    `Writing in English is STRICTLY FORBIDDEN.`,
+    `If you respond in English your answer will be disqualified.`,
+    `###END INSTRUCTION###`,
+    ``,
+    `Question: ${question}`,
+  ].join("\n");
 };
 
 /** @deprecated kept only for the one place that still appends to a sentence fragment */
@@ -896,7 +911,7 @@ const VERDICT_LANG: Record<string, VerdictLang> = {
 };
 
 const buildAnswerPrompt = (model: ModelInfo, question: string, lang = "en") =>
-  `${langUserPrefix(lang)}You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 150 words.\n\nQuestion: ${question}`;
+  `${langUserPrefix(lang)}You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 150 words.\n\n${langBlock(lang, question)}`;
 
 const buildCritiquePromptText = (
   model: ModelInfo,
@@ -910,7 +925,7 @@ const buildCritiquePromptText = (
     `Be genuinely honest and critical — do not give yourself an inflated score.`,
     `Scores must reflect real quality differences. A mediocre answer is a 5–6, a good answer is a 7–8, an excellent answer is 9–10.`,
     ``,
-    `User question: ${question}`,
+    langBlock(lang, question),
     ``,
     `Your answer:`,
     answer,
