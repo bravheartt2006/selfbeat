@@ -534,7 +534,8 @@ async function generateVerdictInsights(
       `1. Three specific points where the models genuinely agreed (reference actual content, not generic statements).`,
       `2. Two or three specific points where they genuinely differed (reference actual differences in content, tone, or emphasis).`,
       ``,
-      `Respond in this exact JSON format with no extra text (write the string values in ${langName}):`,
+      lang !== "en" ? `Write the entire verdict in ${langName}. Every single word must be in ${langName}. Do not use English at all.` : ``,
+    `Respond in this exact JSON format with no extra text (write the string values in ${langName}):`,
       `{"agreementPoints":["...", "...", "..."],"disagreementPoints":["...", "..."]}`,
     ].join("\n");
 
@@ -813,7 +814,7 @@ const langSystemPrompt = (lang: string): string | null => {
   if (lang === "en") return null;
   const name = LANG_NAMES[lang] ?? "English";
   const native = LANG_NATIVE[lang] ?? name;
-  return `You MUST respond entirely in ${name} (${native}). Every single word in your response must be in ${name}. Do not write any English words except where explicitly instructed otherwise. This is a strict requirement.`;
+  return `You must respond 100% in ${name} (${native}). Every single word must be in ${name}. Do not use English at all. Not even one word in English.`;
 };
 
 /**
@@ -824,7 +825,7 @@ const langUserPrefix = (lang: string): string => {
   if (lang === "en") return "";
   const name = LANG_NAMES[lang] ?? "English";
   const native = LANG_NATIVE[lang] ?? name;
-  return `[IMPORTANT: Your entire response must be in ${name} (${native}) only. Do not use any English words whatsoever.]\n\n`;
+  return `[LANGUAGE REQUIREMENT: You must respond 100% in ${name} (${native}). Every single word must be in ${name}. Do not use English at all. Not even one word in English.]\n\n`;
 };
 
 /** @deprecated kept only for the one place that still appends to a sentence fragment */
@@ -918,8 +919,9 @@ const buildCritiquePromptText = (
     allAnswers,
     ``,
     `Write your self-criticism in 2–3 sentences: what you got right, what you missed, which other AI did better and why.`,
-    `End with exactly this format on its own line: "Accuracy score: X/10. Self-awareness score: Y/10."`,
-    `CRITICAL: The final score line MUST always be written in English in exactly that format, even if the rest of your response is in another language. The score parser only reads English.`,
+    lang !== "en"
+      ? `${langUserPrefix(lang)}Write the critique text above entirely in ${LANG_NAMES[lang] ?? lang}. ONLY the final score line below must keep this exact English format (the parser requires it): "Accuracy score: X/10. Self-awareness score: Y/10."`
+      : `End with exactly this format on its own line: "Accuracy score: X/10. Self-awareness score: Y/10."`,
     `Keep it under 120 words total.`,
   ].join("\n");
 
