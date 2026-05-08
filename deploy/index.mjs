@@ -156870,10 +156870,11 @@ data: ${JSON.stringify(data)}
   }
   emit("meta", { limited: isLimited, free: isFreeDemo });
   const question = parsed.data.question.trim();
+  console.log("QUESTION RECEIVED:", question.substring(0, 100));
   const userLang = typeof req.body?.lang === "string" ? LANG_NAMES[req.body.lang] ?? "English" : "English";
   const detected = detectLang(question);
   const lang = detected ?? userLang;
-  req.log.info({ detected, userLang, lang, question: question.slice(0, 80) }, "Language detection");
+  console.log("LANGUAGE DEBUG - detected:", detected, "userLang:", userLang, "final lang:", lang, "question:", question.substring(0, 50));
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
   const isMedical = isMedicalQuestion(question);
   try {
@@ -157096,10 +157097,11 @@ router5.post("/selfbeat/comparisons", async (req, res) => {
     return;
   }
   const question = parsed.data.question.trim();
+  console.log("QUESTION RECEIVED:", question.substring(0, 100));
   const userLang = typeof req.body?.lang === "string" ? LANG_NAMES[req.body.lang] ?? "English" : "English";
   const detected = detectLang(question);
   const lang = detected ?? userLang;
-  req.log.info({ detected, userLang, lang, question: question.slice(0, 80) }, "Language detection");
+  console.log("LANGUAGE DEBUG - detected:", detected, "userLang:", userLang, "final lang:", lang, "question:", question.substring(0, 50));
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
   try {
     const cached2 = await db.query.selfbeatComparisonsTable.findFirst({

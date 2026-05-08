@@ -1010,10 +1010,11 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
   emit("meta", { limited: isLimited, free: isFreeDemo });
 
   const question = parsed.data.question.trim();
+  console.log("QUESTION RECEIVED:", question.substring(0, 100));
   const userLang = typeof req.body?.lang === "string" ? (LANG_NAMES[req.body.lang] ?? "English") : "English";
   const detected = detectLang(question);
   const lang = detected ?? userLang;
-  req.log.info({ detected, userLang, lang, question: question.slice(0, 80) }, "Language detection");
+  console.log("LANGUAGE DEBUG - detected:", detected, "userLang:", userLang, "final lang:", lang, "question:", question.substring(0, 50));
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
   const isMedical = isMedicalQuestion(question);
 
@@ -1293,10 +1294,11 @@ router.post("/selfbeat/comparisons", async (req, res) => {
   }
 
   const question = parsed.data.question.trim();
+  console.log("QUESTION RECEIVED:", question.substring(0, 100));
   const userLang = typeof req.body?.lang === "string" ? (LANG_NAMES[req.body.lang] ?? "English") : "English";
   const detected = detectLang(question);
   const lang = detected ?? userLang;
-  req.log.info({ detected, userLang, lang, question: question.slice(0, 80) }, "Language detection");
+  console.log("LANGUAGE DEBUG - detected:", detected, "userLang:", userLang, "final lang:", lang, "question:", question.substring(0, 50));
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
 
   try {
