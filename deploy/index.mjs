@@ -156275,15 +156275,17 @@ async function generatePhysicianNote(question, answers, lang = "en") {
   try {
     const { anthropic: anthropic2 } = await Promise.resolve().then(() => (init_src3(), src_exports2));
     const prompt = [
-      `You are a physician reviewing AI-generated answers about a health topic. The question was: ${question}. The AI models gave these answers: ${answers}. As a physician, write a brief 2-3 sentence note that:`,
+      `${langUserPrefix(lang)}You are a physician reviewing AI-generated answers about a health topic. The question was: ${question}. The AI models gave these answers: ${answers}. As a physician, write a brief 2-3 sentence note that:`,
       `1. Confirms what the AIs got right`,
       `2. Mentions anything important they missed`,
       `3. Reminds the user to consult their doctor for personal medical advice`,
-      `Keep it simple, warm and under 100 words. Do not diagnose or prescribe anything.${langInstruction(lang)}`
+      `Keep it simple, warm and under 100 words. Do not diagnose or prescribe anything.`
     ].join("\n");
+    const sys = langSystemPrompt(lang);
     const response = await anthropic2.messages.create({
       model: "claude-haiku-4-5",
       max_tokens: 256,
+      ...sys ? { system: sys } : {},
       messages: [{ role: "user", content: prompt }]
     });
     const raw = response.content.map((part) => part.type === "text" ? part.text : "").join("").trim();
@@ -156312,13 +156314,16 @@ function withTimeout(promise2, ms) {
     )
   ]);
 }
-async function askModel(model, prompt, maxTokens = 450) {
+async function askModel(model, prompt, maxTokens = 450, systemPrompt) {
   return withRetry2(async () => {
     if (model.provider === "openai") {
       const { openai: openai4 } = await Promise.resolve().then(() => (init_src2(), src_exports));
+      const messages3 = [];
+      if (systemPrompt) messages3.push({ role: "system", content: systemPrompt });
+      messages3.push({ role: "user", content: prompt });
       const response2 = await openai4.chat.completions.create({
         model: model.routerModel,
-        messages: [{ role: "user", content: prompt }],
+        messages: messages3,
         max_completion_tokens: maxTokens
       });
       return response2.choices[0]?.message?.content?.trim() || "";
@@ -156328,37 +156333,47 @@ async function askModel(model, prompt, maxTokens = 450) {
       const response2 = await anthropic2.messages.create({
         model: model.routerModel,
         max_tokens: maxTokens,
+        ...systemPrompt ? { system: systemPrompt } : {},
         messages: [{ role: "user", content: prompt }]
       });
       return response2.content.map((part) => part.type === "text" ? part.text : "").join("").trim();
     }
     if (model.provider === "gemini") {
       const { ai: ai3 } = await Promise.resolve().then(() => (init_src5(), src_exports4));
+      const fullPrompt = systemPrompt ? `${systemPrompt}
+
+${prompt}` : prompt;
       const response2 = await ai3.models.generateContent({
         model: model.routerModel,
-        contents: prompt,
+        contents: fullPrompt,
         config: { maxOutputTokens: maxTokens }
       });
       return response2.text?.trim() || "";
     }
     const { openrouter: openrouter2 } = await Promise.resolve().then(() => (init_src6(), src_exports5));
+    const messages2 = [];
+    if (systemPrompt) messages2.push({ role: "system", content: systemPrompt });
+    messages2.push({ role: "user", content: prompt });
     const response = await openrouter2.chat.completions.create({
       model: model.routerModel,
-      messages: [{ role: "user", content: prompt }],
+      messages: messages2,
       max_tokens: maxTokens
     });
     return response.choices[0]?.message?.content?.trim() || "";
   });
 }
-async function askModelStream(model, prompt, onToken, maxTokens = 450) {
+async function askModelStream(model, prompt, onToken, maxTokens = 450, systemPrompt) {
   let accumulated = "";
   const doStream = async () => {
     accumulated = "";
     if (model.provider === "openai") {
       const { openai: openai4 } = await Promise.resolve().then(() => (init_src2(), src_exports));
+      const messages2 = [];
+      if (systemPrompt) messages2.push({ role: "system", content: systemPrompt });
+      messages2.push({ role: "user", content: prompt });
       const stream2 = await openai4.chat.completions.create({
         model: model.routerModel,
-        messages: [{ role: "user", content: prompt }],
+        messages: messages2,
         max_completion_tokens: maxTokens,
         stream: true
       });
@@ -156376,6 +156391,7 @@ async function askModelStream(model, prompt, onToken, maxTokens = 450) {
       const stream2 = await anthropic2.messages.create({
         model: model.routerModel,
         max_tokens: maxTokens,
+        ...systemPrompt ? { system: systemPrompt } : {},
         messages: [{ role: "user", content: prompt }],
         stream: true
       });
@@ -156392,9 +156408,12 @@ async function askModelStream(model, prompt, onToken, maxTokens = 450) {
     }
     if (model.provider === "gemini") {
       const { ai: ai3 } = await Promise.resolve().then(() => (init_src5(), src_exports4));
+      const geminiContents = systemPrompt ? `${systemPrompt}
+
+${prompt}` : prompt;
       const response = await ai3.models.generateContentStream({
         model: model.routerModel,
-        contents: prompt,
+        contents: geminiContents,
         config: { maxOutputTokens: maxTokens }
       });
       for await (const chunk of response) {
@@ -156407,9 +156426,12 @@ async function askModelStream(model, prompt, onToken, maxTokens = 450) {
       return accumulated.trim();
     }
     const { openrouter: openrouter2 } = await Promise.resolve().then(() => (init_src6(), src_exports5));
+    const orMessages = [];
+    if (systemPrompt) orMessages.push({ role: "system", content: systemPrompt });
+    orMessages.push({ role: "user", content: prompt });
     const stream = await openrouter2.chat.completions.create({
       model: model.routerModel,
-      messages: [{ role: "user", content: prompt }],
+      messages: orMessages,
       max_tokens: maxTokens,
       stream: true
     });
@@ -156486,8 +156508,10 @@ async function generateVerdictInsights(question, answers, lang = "en") {
   try {
     const { openai: openai4 } = await Promise.resolve().then(() => (init_src2(), src_exports));
     const summary = answers.map(({ displayName, answer }) => `${displayName}: ${answer.slice(0, 200)}`).join("\n\n");
+    const langName = LANG_NAMES[lang] ?? "English";
+    const sys = langSystemPrompt(lang);
     const prompt = [
-      `Ten AI models answered this question: "${question}"`,
+      `${langUserPrefix(lang)}Ten AI models answered this question: "${question}"`,
       ``,
       `Here are summaries of their answers:`,
       summary,
@@ -156496,12 +156520,15 @@ async function generateVerdictInsights(question, answers, lang = "en") {
       `1. Three specific points where the models genuinely agreed (reference actual content, not generic statements).`,
       `2. Two or three specific points where they genuinely differed (reference actual differences in content, tone, or emphasis).`,
       ``,
-      `Respond in this exact JSON format with no extra text (write the string values in ${LANG_NAMES[lang] ?? "English"}):`,
+      `Respond in this exact JSON format with no extra text (write the string values in ${langName}):`,
       `{"agreementPoints":["...", "...", "..."],"disagreementPoints":["...", "..."]}`
     ].join("\n");
+    const messages2 = [];
+    if (sys) messages2.push({ role: "system", content: sys });
+    messages2.push({ role: "user", content: prompt });
     const response = await openai4.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
+      messages: messages2,
       max_completion_tokens: 400,
       temperature: 0.3
     });
@@ -156518,7 +156545,8 @@ async function generateVerdictInsights(question, answers, lang = "en") {
 }
 async function createComparison(question, mode, lang = "en") {
   const isMedical = isMedicalQuestion(question);
-  const answerPrompt = (model) => `You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 220 words.${langInstruction(lang)}
+  const langSys = langSystemPrompt(lang);
+  const answerPrompt = (model) => `${langUserPrefix(lang)}You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 220 words.
 
 Question: ${question}`;
   const firstRound = await Promise.all(
@@ -156532,7 +156560,7 @@ Question: ${question}`;
         };
       }
       try {
-        const raw = await askModel(model, answerPrompt(model));
+        const raw = await askModel(model, answerPrompt(model), 450, langSys);
         if (raw) {
           return { model, answer: raw, status: "success" };
         }
@@ -156584,7 +156612,7 @@ Question: ${question}`;
         };
       }
       const critiquePrompt = [
-        `You are ${model.displayName} in Selfbeat's self-criticism round.`,
+        `${langUserPrefix(lang)}You are ${model.displayName} in Selfbeat's self-criticism round.`,
         `Be genuinely honest and critical \u2014 do not give yourself an inflated score.`,
         `Scores must reflect real quality differences. A mediocre answer is a 5\u20136, a good answer is a 7\u20138, an excellent answer is 9\u201310.`,
         ``,
@@ -156596,13 +156624,13 @@ Question: ${question}`;
         `All AI answers for comparison:`,
         allAnswers,
         ``,
-        `Write your self-criticism in 2\u20133 sentences: what you got right, what you missed, which other AI did better and why.${langInstruction(lang)}`,
+        `Write your self-criticism in 2\u20133 sentences: what you got right, what you missed, which other AI did better and why.`,
         `End with exactly this format on its own line: "Accuracy score: X/10. Self-awareness score: Y/10."`,
         `CRITICAL: The final score line MUST always be written in English in exactly that format, even if the rest of your response is in another language. The score parser only reads English.`,
         `Keep it under 120 words total.`
       ].join("\n");
       try {
-        const critique = await withTimeout(askModel(model, critiquePrompt, 300), 1e4);
+        const critique = await withTimeout(askModel(model, critiquePrompt, 300, langSys), 1e4);
         const accuracyMatch = critique.match(/accuracy\s+score[^\d]*(\d+(?:\.\d+)?)\s*\/\s*10/i);
         const selfAwareMatch = critique.match(/self.awareness\s+score[^\d]*(\d+(?:\.\d+)?)\s*\/\s*10/i);
         const accuracyScore = accuracyMatch ? clampScore(Number(accuracyMatch[1])) : extractScore(critique, seededBase);
@@ -156690,10 +156718,27 @@ var LANG_NAMES = {
   it: "Italian",
   es: "Spanish"
 };
-var langInstruction = (lang) => {
+var LANG_NATIVE = {
+  en: "English",
+  fr: "Fran\xE7ais",
+  ar: "\u0627\u0644\u0639\u0631\u0628\u064A\u0629",
+  zh: "\u4E2D\u6587",
+  it: "Italiano",
+  es: "Espa\xF1ol"
+};
+var langSystemPrompt = (lang) => {
+  if (lang === "en") return null;
   const name = LANG_NAMES[lang] ?? "English";
+  const native = LANG_NATIVE[lang] ?? name;
+  return `You MUST respond entirely in ${name} (${native}). Every single word in your response must be in ${name}. Do not write any English words except where explicitly instructed otherwise. This is a strict requirement.`;
+};
+var langUserPrefix = (lang) => {
   if (lang === "en") return "";
-  return ` IMPORTANT: Write your entire response in ${name}. Do not use any other language.`;
+  const name = LANG_NAMES[lang] ?? "English";
+  const native = LANG_NATIVE[lang] ?? name;
+  return `[IMPORTANT: Your entire response must be in ${name} (${native}) only. Do not use any English words whatsoever.]
+
+`;
 };
 var detectLang = (text2) => {
   if (/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(text2)) return "ar";
@@ -156745,11 +156790,11 @@ var VERDICT_LANG = {
     insightFallbackDisagree: ["Los modelos difer\xEDan en cu\xE1nto contexto incluir.", "Ponderaron la claridad, la cautela y la exhaustividad de forma diferente."]
   }
 };
-var buildAnswerPrompt = (model, question, lang = "en") => `You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 150 words.${langInstruction(lang)}
+var buildAnswerPrompt = (model, question, lang = "en") => `${langUserPrefix(lang)}You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 150 words.
 
 Question: ${question}`;
 var buildCritiquePromptText = (model, question, answer, allAnswers, lang = "en") => [
-  `You are ${model.displayName} in Selfbeat's self-criticism round.${langInstruction(lang)}`,
+  `${langUserPrefix(lang)}You are ${model.displayName} in Selfbeat's self-criticism round.`,
   `Be genuinely honest and critical \u2014 do not give yourself an inflated score.`,
   `Scores must reflect real quality differences. A mediocre answer is a 5\u20136, a good answer is a 7\u20138, an excellent answer is 9\u201310.`,
   ``,
@@ -156858,7 +156903,8 @@ data: ${JSON.stringify(data)}
               model,
               buildAnswerPrompt(model, question, lang),
               (token) => emit("token", { model: model.key, round: 1, token }),
-              450
+              450,
+              langSystemPrompt(lang)
             ),
             12e3
           );
@@ -156929,7 +156975,8 @@ data: ${JSON.stringify(data)}
                 model,
                 buildCritiquePromptText(model, question, answer, allAnswers, lang),
                 (token) => emit("token", { model: model.key, round: 2, token }),
-                300
+                300,
+                langSystemPrompt(lang)
               ),
               1e4
             );
