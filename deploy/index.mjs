@@ -156157,7 +156157,7 @@ var router5 = (0, import_express5.Router)();
 var models = [
   { key: "chatgpt", displayName: "ChatGPT", color: "#10A37F", provider: "openai", routerModel: "gpt-4o-mini" },
   { key: "claude", displayName: "Claude", color: "#CC785C", provider: "anthropic", routerModel: "claude-haiku-4-5" },
-  { key: "gemini", displayName: "Gemini", color: "#4285F4", provider: "gemini", routerModel: "gemini-2.0-flash-001" },
+  { key: "gemini", displayName: "Gemini", color: "#4285F4", provider: "openrouter", routerModel: "google/gemini-2.0-flash" },
   { key: "deepseek", displayName: "DeepSeek", color: "#7B68EE", provider: "openrouter", routerModel: "deepseek/deepseek-chat" },
   { key: "grok", displayName: "Grok", color: "#F97316", provider: "openrouter", routerModel: "x-ai/grok-3-mini" },
   { key: "mistral", displayName: "Mistral Large", color: "#EF4444", provider: "openrouter", routerModel: "mistralai/mistral-large" },
@@ -156264,7 +156264,9 @@ async function backupAnswer(question, lang = "English") {
 
 ${langBlock(lang, question)}` });
     if (!IS_REPLIT) {
-      return await callOpenRouter("openai/gpt-4o-mini", msgs, 500);
+      const result2 = await callOpenRouter("openai/gpt-4o-mini", msgs, 500);
+      console.log(`[backupAnswer] Railway result length=${result2.length}`);
+      return result2;
     }
     const { openai: openai4 } = await Promise.resolve().then(() => (init_src2(), src_exports));
     const response = await openai4.chat.completions.create({
@@ -156272,8 +156274,11 @@ ${langBlock(lang, question)}` });
       messages: msgs,
       max_completion_tokens: 500
     });
-    return response.choices[0]?.message?.content?.trim() || "";
-  } catch {
+    const result = response.choices[0]?.message?.content?.trim() || "";
+    console.log(`[backupAnswer] Replit result length=${result.length} lang=${lang}`);
+    return result;
+  } catch (err) {
+    console.error(`[backupAnswer] FAILED lang=${lang}:`, err instanceof Error ? err.message : String(err));
     return "";
   }
 }
@@ -156317,7 +156322,6 @@ console.log(`[selfbeat] env: ${IS_REPLIT ? "Replit (integration proxy)" : "Railw
 function getOpenRouterModelId(model) {
   if (model.provider === "openai") return `openai/${model.routerModel}`;
   if (model.provider === "anthropic") return `anthropic/${model.routerModel}`;
-  if (model.provider === "gemini") return "google/gemini-2.0-flash";
   return model.routerModel;
 }
 async function callOpenRouter(modelId, messages2, maxTokens, onToken) {

@@ -96,7 +96,7 @@ const router: IRouter = Router();
 const models: ModelInfo[] = [
   { key: "chatgpt",    displayName: "ChatGPT",          color: "#10A37F", provider: "openai",     routerModel: "gpt-4o-mini" },
   { key: "claude",     displayName: "Claude",            color: "#CC785C", provider: "anthropic",  routerModel: "claude-haiku-4-5" },
-  { key: "gemini",     displayName: "Gemini",            color: "#4285F4", provider: "gemini",     routerModel: "gemini-2.0-flash-001" },
+  { key: "gemini",     displayName: "Gemini",            color: "#4285F4", provider: "openrouter", routerModel: "google/gemini-2.0-flash" },
   { key: "deepseek",   displayName: "DeepSeek",          color: "#7B68EE", provider: "openrouter", routerModel: "deepseek/deepseek-chat" },
   { key: "grok",       displayName: "Grok",              color: "#F97316", provider: "openrouter", routerModel: "x-ai/grok-3-mini" },
   { key: "mistral",    displayName: "Mistral Large",     color: "#EF4444", provider: "openrouter", routerModel: "mistralai/mistral-large" },
@@ -221,7 +221,9 @@ async function backupAnswer(question: string, lang = "English"): Promise<string>
     msgs.push({ role: "user", content: `${langUserPrefix(lang)}Answer this question clearly and accurately for a general audience. Keep the answer under 200 words.\n\n${langBlock(lang, question)}` });
 
     if (!IS_REPLIT) {
-      return await callOpenRouter("openai/gpt-4o-mini", msgs, 500);
+      const result = await callOpenRouter("openai/gpt-4o-mini", msgs, 500);
+      console.log(`[backupAnswer] Railway result length=${result.length}`);
+      return result;
     }
     const { openai } = await import("@workspace/integrations-openai-ai-server");
     const response = await openai.chat.completions.create({
@@ -229,8 +231,11 @@ async function backupAnswer(question: string, lang = "English"): Promise<string>
       messages: msgs,
       max_completion_tokens: 500,
     });
-    return response.choices[0]?.message?.content?.trim() || "";
-  } catch {
+    const result = response.choices[0]?.message?.content?.trim() || "";
+    console.log(`[backupAnswer] Replit result length=${result.length} lang=${lang}`);
+    return result;
+  } catch (err) {
+    console.error(`[backupAnswer] FAILED lang=${lang}:`, err instanceof Error ? err.message : String(err));
     return "";
   }
 }
@@ -286,8 +291,7 @@ console.log(`[selfbeat] env: ${IS_REPLIT ? "Replit (integration proxy)" : "Railw
 function getOpenRouterModelId(model: ModelInfo): string {
   if (model.provider === "openai") return `openai/${model.routerModel}`;
   if (model.provider === "anthropic") return `anthropic/${model.routerModel}`;
-  if (model.provider === "gemini") return "google/gemini-2.0-flash"; // OpenRouter uses non-versioned alias
-  return model.routerModel; // openrouter models already carry provider prefix
+  return model.routerModel; // openrouter models already carry their full provider/model prefix
 }
 
 /**
