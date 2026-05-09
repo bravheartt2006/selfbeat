@@ -156257,19 +156257,19 @@ var fallbackAnswer = (model, question, lang = "English") => {
 };
 async function backupAnswer(question, lang = "English") {
   try {
-    const { openai: openai4 } = await Promise.resolve().then(() => (init_src2(), src_exports));
     const sysPrompt = langSystemPrompt(lang);
+    const msgs = [];
+    if (sysPrompt) msgs.push({ role: "system", content: sysPrompt });
+    msgs.push({ role: "user", content: `${langUserPrefix(lang)}Answer this question clearly and accurately for a general audience. Keep the answer under 200 words.
+
+${langBlock(lang, question)}` });
+    if (!IS_REPLIT) {
+      return await callOpenRouter("openai/gpt-4o-mini", msgs, 500);
+    }
+    const { openai: openai4 } = await Promise.resolve().then(() => (init_src2(), src_exports));
     const response = await openai4.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [
-        ...sysPrompt ? [{ role: "system", content: sysPrompt }] : [],
-        {
-          role: "user",
-          content: `${langUserPrefix(lang)}Answer this question clearly and accurately for a general audience. Keep the answer under 200 words.
-
-${langBlock(lang, question)}`
-        }
-      ],
+      messages: msgs,
       max_completion_tokens: 500
     });
     return response.choices[0]?.message?.content?.trim() || "";
@@ -156292,17 +156292,85 @@ async function generatePhysicianNote(question, answers, lang = "English") {
       `Keep it simple, warm and under 100 words. Do not diagnose or prescribe anything.`
     ].join("\n");
     const sys = langSystemPrompt(lang);
-    const response = await anthropic2.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 256,
-      ...sys ? { system: sys } : {},
-      messages: [{ role: "user", content: prompt }]
-    });
-    const raw = response.content.map((part) => part.type === "text" ? part.text : "").join("").trim();
+    const phMsgs = [];
+    if (sys) phMsgs.push({ role: "system", content: sys });
+    phMsgs.push({ role: "user", content: prompt });
+    let raw;
+    if (!IS_REPLIT) {
+      raw = await callOpenRouter("anthropic/claude-haiku-4-5", phMsgs, 256);
+    } else {
+      const response = await anthropic2.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 256,
+        ...sys ? { system: sys } : {},
+        messages: [{ role: "user", content: prompt }]
+      });
+      raw = response.content.map((part) => part.type === "text" ? part.text : "").join("").trim();
+    }
     return raw.replace(/^#+\s+[^\n]*\n+/, "").trim() || void 0;
   } catch {
     return void 0;
   }
+}
+var IS_REPLIT = !!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+console.log(`[selfbeat] env: ${IS_REPLIT ? "Replit (integration proxy)" : "Railway (OpenRouter direct)"}`);
+function getOpenRouterModelId(model) {
+  if (model.provider === "openai") return `openai/${model.routerModel}`;
+  if (model.provider === "anthropic") return `anthropic/${model.routerModel}`;
+  if (model.provider === "gemini") return `google/${model.routerModel}`;
+  return model.routerModel;
+}
+async function callOpenRouter(modelId, messages2, maxTokens, onToken) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY not set \u2014 add it to Railway environment variables");
+  const headers = {
+    "Authorization": `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+    "HTTP-Referer": "https://selfbeat.ai",
+    "X-Title": "Selfbeat"
+  };
+  if (onToken) {
+    const res2 = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ model: modelId, messages: messages2, max_tokens: maxTokens, stream: true })
+    });
+    if (!res2.ok) throw new Error(`OpenRouter ${res2.status}: ${await res2.text()}`);
+    const reader = res2.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulated = "";
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line2 of lines) {
+        if (!line2.startsWith("data: ")) continue;
+        const data2 = line2.slice(6).trim();
+        if (data2 === "[DONE]") continue;
+        try {
+          const json3 = JSON.parse(data2);
+          const token = json3.choices?.[0]?.delta?.content || "";
+          if (token) {
+            accumulated += token;
+            onToken(token);
+          }
+        } catch {
+        }
+      }
+    }
+    return accumulated.trim();
+  }
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ model: modelId, messages: messages2, max_tokens: maxTokens, stream: false })
+  });
+  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content?.trim() || "";
 }
 async function withRetry2(operation) {
   let lastError;
@@ -156328,14 +156396,17 @@ function withTimeout(promise2, ms) {
 }
 async function askModel(model, prompt, maxTokens = 450, systemPrompt) {
   return withRetry2(async () => {
+    const msgs = [];
+    if (systemPrompt) msgs.push({ role: "system", content: systemPrompt });
+    msgs.push({ role: "user", content: prompt });
+    if (!IS_REPLIT) {
+      return callOpenRouter(getOpenRouterModelId(model), msgs, maxTokens);
+    }
     if (model.provider === "openai") {
       const { openai: openai4 } = await Promise.resolve().then(() => (init_src2(), src_exports));
-      const messages3 = [];
-      if (systemPrompt) messages3.push({ role: "system", content: systemPrompt });
-      messages3.push({ role: "user", content: prompt });
       const response2 = await openai4.chat.completions.create({
         model: model.routerModel,
-        messages: messages3,
+        messages: msgs,
         max_completion_tokens: maxTokens
       });
       return response2.choices[0]?.message?.content?.trim() || "";
@@ -156363,12 +156434,9 @@ ${prompt}` : prompt;
       return response2.text?.trim() || "";
     }
     const { openrouter: openrouter2 } = await Promise.resolve().then(() => (init_src6(), src_exports5));
-    const messages2 = [];
-    if (systemPrompt) messages2.push({ role: "system", content: systemPrompt });
-    messages2.push({ role: "user", content: prompt });
     const response = await openrouter2.chat.completions.create({
       model: model.routerModel,
-      messages: messages2,
+      messages: msgs,
       max_tokens: maxTokens
     });
     return response.choices[0]?.message?.content?.trim() || "";
@@ -156378,14 +156446,17 @@ async function askModelStream(model, prompt, onToken, maxTokens = 450, systemPro
   let accumulated = "";
   const doStream = async () => {
     accumulated = "";
+    const msgs = [];
+    if (systemPrompt) msgs.push({ role: "system", content: systemPrompt });
+    msgs.push({ role: "user", content: prompt });
+    if (!IS_REPLIT) {
+      return callOpenRouter(getOpenRouterModelId(model), msgs, maxTokens, onToken);
+    }
     if (model.provider === "openai") {
       const { openai: openai4 } = await Promise.resolve().then(() => (init_src2(), src_exports));
-      const messages2 = [];
-      if (systemPrompt) messages2.push({ role: "system", content: systemPrompt });
-      messages2.push({ role: "user", content: prompt });
       const stream2 = await openai4.chat.completions.create({
         model: model.routerModel,
-        messages: messages2,
+        messages: msgs,
         max_completion_tokens: maxTokens,
         stream: true
       });
@@ -156400,7 +156471,6 @@ async function askModelStream(model, prompt, onToken, maxTokens = 450, systemPro
     }
     if (model.provider === "anthropic") {
       const { anthropic: anthropic2 } = await Promise.resolve().then(() => (init_src3(), src_exports2));
-      console.log("SENDING TO CLAUDE:", JSON.stringify(prompt).substring(0, 300));
       const stream2 = await anthropic2.messages.create({
         model: model.routerModel,
         max_tokens: maxTokens,
@@ -156439,12 +156509,9 @@ ${prompt}` : prompt;
       return accumulated.trim();
     }
     const { openrouter: openrouter2 } = await Promise.resolve().then(() => (init_src6(), src_exports5));
-    const orMessages = [];
-    if (systemPrompt) orMessages.push({ role: "system", content: systemPrompt });
-    orMessages.push({ role: "user", content: prompt });
     const stream = await openrouter2.chat.completions.create({
       model: model.routerModel,
-      messages: orMessages,
+      messages: msgs,
       max_tokens: maxTokens,
       stream: true
     });
@@ -156540,13 +156607,18 @@ async function generateVerdictInsights(question, answers, lang = "English") {
     const messages2 = [];
     if (sys) messages2.push({ role: "system", content: sys });
     messages2.push({ role: "user", content: prompt });
-    const response = await openai4.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: messages2,
-      max_completion_tokens: 400,
-      temperature: 0.3
-    });
-    const raw = response.choices[0]?.message?.content?.trim() || "";
+    let raw;
+    if (!IS_REPLIT) {
+      raw = await callOpenRouter("openai/gpt-4o-mini", messages2, 400);
+    } else {
+      const response = await openai4.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: messages2,
+        max_completion_tokens: 400,
+        temperature: 0.3
+      });
+      raw = response.choices[0]?.message?.content?.trim() || "";
+    }
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return fallback;
     const parsed = JSON.parse(jsonMatch[0]);

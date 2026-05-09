@@ -215,17 +215,18 @@ const fallbackAnswer = (model: ModelInfo, question: string, lang = "English") =>
 // When a primary provider fails, use GPT-4o-mini to return a real answer
 async function backupAnswer(question: string, lang = "English"): Promise<string> {
   try {
-    const { openai } = await import("@workspace/integrations-openai-ai-server");
     const sysPrompt = langSystemPrompt(lang);
+    const msgs: { role: "system" | "user"; content: string }[] = [];
+    if (sysPrompt) msgs.push({ role: "system", content: sysPrompt });
+    msgs.push({ role: "user", content: `${langUserPrefix(lang)}Answer this question clearly and accurately for a general audience. Keep the answer under 200 words.\n\n${langBlock(lang, question)}` });
+
+    if (!IS_REPLIT) {
+      return await callOpenRouter("openai/gpt-4o-mini", msgs, 500);
+    }
+    const { openai } = await import("@workspace/integrations-openai-ai-server");
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [
-        ...(sysPrompt ? [{ role: "system" as const, content: sysPrompt }] : []),
-        {
-          role: "user" as const,
-          content: `${langUserPrefix(lang)}Answer this question clearly and accurately for a general audience. Keep the answer under 200 words.\n\n${langBlock(lang, question)}`,
-        },
-      ],
+      messages: msgs,
       max_completion_tokens: 500,
     });
     return response.choices[0]?.message?.content?.trim() || "";
@@ -252,21 +253,102 @@ async function generatePhysicianNote(question: string, answers: string, lang = "
     ].join("\n");
 
     const sys = langSystemPrompt(lang);
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 256,
-      ...(sys ? { system: sys } : {}),
-      messages: [{ role: "user", content: prompt }],
-    });
-    const raw = response.content
-      .map((part) => (part.type === "text" ? part.text : ""))
-      .join("")
-      .trim();
+    const phMsgs: { role: "system" | "user"; content: string }[] = [];
+    if (sys) phMsgs.push({ role: "system", content: sys });
+    phMsgs.push({ role: "user", content: prompt });
+
+    let raw: string;
+    if (!IS_REPLIT) {
+      raw = await callOpenRouter("anthropic/claude-haiku-4-5", phMsgs, 256);
+    } else {
+      const response = await anthropic.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 256,
+        ...(sys ? { system: sys } : {}),
+        messages: [{ role: "user", content: prompt }],
+      });
+      raw = response.content.map((part) => (part.type === "text" ? part.text : "")).join("").trim();
+    }
     // Strip any leading markdown headings Claude may add (e.g. "# Physician's Review\n\n")
     return raw.replace(/^#+\s+[^\n]*\n+/, "").trim() || undefined;
   } catch {
     return undefined;
   }
+}
+
+// ─── ENVIRONMENT DETECTION ───────────────────────────────────────────────────
+// Replit integrations use localhost:1106 (only available inside Replit's container).
+// On Railway (or any external host) that proxy doesn't exist → all calls fail.
+// Solution: detect non-Replit and route everything through OpenRouter directly.
+const IS_REPLIT = !!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+console.log(`[selfbeat] env: ${IS_REPLIT ? "Replit (integration proxy)" : "Railway (OpenRouter direct)"}`);
+
+function getOpenRouterModelId(model: ModelInfo): string {
+  if (model.provider === "openai") return `openai/${model.routerModel}`;
+  if (model.provider === "anthropic") return `anthropic/${model.routerModel}`;
+  if (model.provider === "gemini") return `google/${model.routerModel}`;
+  return model.routerModel; // openrouter models already carry provider prefix
+}
+
+/**
+ * Single fetch-based OpenRouter caller used on Railway.
+ * If onToken is supplied → streaming SSE; otherwise → single non-streaming call.
+ */
+async function callOpenRouter(
+  modelId: string,
+  messages: { role: "system" | "user"; content: string }[],
+  maxTokens: number,
+  onToken?: (token: string) => void,
+): Promise<string> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY not set — add it to Railway environment variables");
+
+  const headers = {
+    "Authorization": `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+    "HTTP-Referer": "https://selfbeat.ai",
+    "X-Title": "Selfbeat",
+  };
+
+  if (onToken) {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ model: modelId, messages, max_tokens: maxTokens, stream: true }),
+    });
+    if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let accumulated = "";
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") continue;
+        try {
+          const json = JSON.parse(data) as { choices?: { delta?: { content?: string } }[] };
+          const token = json.choices?.[0]?.delta?.content || "";
+          if (token) { accumulated += token; onToken(token); }
+        } catch {}
+      }
+    }
+    return accumulated.trim();
+  }
+
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ model: modelId, messages, max_tokens: maxTokens, stream: false }),
+  });
+  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
+  const data = await res.json() as { choices?: { message?: { content?: string } }[] };
+  return data.choices?.[0]?.message?.content?.trim() || "";
 }
 
 async function withRetry<T>(operation: () => Promise<T>) {
@@ -302,14 +384,20 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 async function askModel(model: ModelInfo, prompt: string, maxTokens = 450, systemPrompt?: string | null) {
   return withRetry(async () => {
+    const msgs: { role: "system" | "user"; content: string }[] = [];
+    if (systemPrompt) msgs.push({ role: "system", content: systemPrompt });
+    msgs.push({ role: "user", content: prompt });
+
+    // Railway: use OpenRouter directly (Replit proxy is localhost-only)
+    if (!IS_REPLIT) {
+      return callOpenRouter(getOpenRouterModelId(model), msgs, maxTokens);
+    }
+
     if (model.provider === "openai") {
       const { openai } = await import("@workspace/integrations-openai-ai-server");
-      const messages: { role: "system" | "user"; content: string }[] = [];
-      if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
-      messages.push({ role: "user", content: prompt });
       const response = await openai.chat.completions.create({
         model: model.routerModel,
-        messages,
+        messages: msgs,
         max_completion_tokens: maxTokens,
       });
       return response.choices[0]?.message?.content?.trim() || "";
@@ -331,7 +419,6 @@ async function askModel(model: ModelInfo, prompt: string, maxTokens = 450, syste
 
     if (model.provider === "gemini") {
       const { ai } = await import("@workspace/integrations-gemini-ai");
-      // Gemini doesn't have a separate system role in this SDK — prepend as instruction
       const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
       const response = await ai.models.generateContent({
         model: model.routerModel,
@@ -341,14 +428,10 @@ async function askModel(model: ModelInfo, prompt: string, maxTokens = 450, syste
       return response.text?.trim() || "";
     }
 
-    // All OpenRouter models (DeepSeek, Grok, Mistral, Llama, Perplexity, Cohere, Qwen)
     const { openrouter } = await import("@workspace/integrations-openrouter-ai");
-    const messages: { role: "system" | "user"; content: string }[] = [];
-    if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
-    messages.push({ role: "user", content: prompt });
     const response = await openrouter.chat.completions.create({
       model: model.routerModel,
-      messages,
+      messages: msgs,
       max_tokens: maxTokens,
     });
     return response.choices[0]?.message?.content?.trim() || "";
@@ -367,14 +450,20 @@ async function askModelStream(
   const doStream = async (): Promise<string> => {
     accumulated = "";
 
+    const msgs: { role: "system" | "user"; content: string }[] = [];
+    if (systemPrompt) msgs.push({ role: "system", content: systemPrompt });
+    msgs.push({ role: "user", content: prompt });
+
+    // Railway: stream directly through OpenRouter
+    if (!IS_REPLIT) {
+      return callOpenRouter(getOpenRouterModelId(model), msgs, maxTokens, onToken);
+    }
+
     if (model.provider === "openai") {
       const { openai } = await import("@workspace/integrations-openai-ai-server");
-      const messages: { role: "system" | "user"; content: string }[] = [];
-      if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
-      messages.push({ role: "user", content: prompt });
       const stream = await openai.chat.completions.create({
         model: model.routerModel,
-        messages,
+        messages: msgs,
         max_completion_tokens: maxTokens,
         stream: true,
       });
@@ -387,7 +476,6 @@ async function askModelStream(
 
     if (model.provider === "anthropic") {
       const { anthropic } = await import("@workspace/integrations-anthropic-ai");
-      console.log("SENDING TO CLAUDE:", JSON.stringify(prompt).substring(0, 300));
       const stream = await anthropic.messages.create({
         model: model.routerModel,
         max_tokens: maxTokens,
@@ -426,12 +514,9 @@ async function askModelStream(
 
     // OpenRouter (all remaining models)
     const { openrouter } = await import("@workspace/integrations-openrouter-ai");
-    const orMessages: { role: "system" | "user"; content: string }[] = [];
-    if (systemPrompt) orMessages.push({ role: "system", content: systemPrompt });
-    orMessages.push({ role: "user", content: prompt });
     const stream = await openrouter.chat.completions.create({
       model: model.routerModel,
-      messages: orMessages,
+      messages: msgs,
       max_tokens: maxTokens,
       stream: true,
     });
@@ -558,14 +643,18 @@ async function generateVerdictInsights(
     if (sys) messages.push({ role: "system", content: sys });
     messages.push({ role: "user", content: prompt });
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages,
-      max_completion_tokens: 400,
-      temperature: 0.3,
-    });
-
-    const raw = response.choices[0]?.message?.content?.trim() || "";
+    let raw: string;
+    if (!IS_REPLIT) {
+      raw = await callOpenRouter("openai/gpt-4o-mini", messages, 400);
+    } else {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages,
+        max_completion_tokens: 400,
+        temperature: 0.3,
+      });
+      raw = response.choices[0]?.message?.content?.trim() || "";
+    }
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return fallback;
 
