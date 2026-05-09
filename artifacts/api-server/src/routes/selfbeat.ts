@@ -1033,10 +1033,12 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
   const isMedical = isMedicalQuestion(question);
 
   try {
-    // Serve from cache (replay all events quickly)
-    const cached = await db.query.selfbeatComparisonsTable.findFirst({
-      where: eq(selfbeatComparisonsTable.questionKey, questionKey),
-    });
+    // Serve from cache (replay all events quickly) — skip for non-English to always get fresh responses
+    const cached = lang === "English"
+      ? await db.query.selfbeatComparisonsTable.findFirst({
+          where: eq(selfbeatComparisonsTable.questionKey, questionKey),
+        })
+      : null;
 
     if (cached) {
       // If limited and we deducted a credit for a cached result, refund it
@@ -1271,9 +1273,12 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
       })),
     };
 
-    try {
-      await db.insert(selfbeatComparisonsTable).values({ id, questionKey, question, result: fullResult });
-    } catch {}
+    // Only cache English results — non-English always run fresh
+    if (lang === "English") {
+      try {
+        await db.insert(selfbeatComparisonsTable).values({ id, questionKey, question, result: fullResult });
+      } catch {}
+    }
 
     // Record to user history (fire-and-forget)
     if (userId) {

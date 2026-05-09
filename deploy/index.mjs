@@ -156885,9 +156885,9 @@ data: ${JSON.stringify(data)}
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
   const isMedical = isMedicalQuestion(question);
   try {
-    const cached2 = await db.query.selfbeatComparisonsTable.findFirst({
+    const cached2 = lang === "English" ? await db.query.selfbeatComparisonsTable.findFirst({
       where: eq(selfbeatComparisonsTable.questionKey, questionKey)
-    });
+    }) : null;
     if (cached2) {
       if (isLimited && creditDeducted && userId) {
         await db.update(selfbeatUsersTable).set({ credits: sql`${selfbeatUsersTable.credits} + 1` }).where(eq(selfbeatUsersTable.id, userId));
@@ -157074,9 +157074,11 @@ data: ${JSON.stringify(data)}
         message: r2.status === "success" ? "Live provider response used." : r2.error || "Fallback response used."
       }))
     };
-    try {
-      await db.insert(selfbeatComparisonsTable).values({ id, questionKey, question, result: fullResult });
-    } catch {
+    if (lang === "English") {
+      try {
+        await db.insert(selfbeatComparisonsTable).values({ id, questionKey, question, result: fullResult });
+      } catch {
+      }
     }
     if (userId) {
       db.insert(selfbeatUserHistoryTable).values({
