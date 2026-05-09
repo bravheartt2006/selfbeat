@@ -380,8 +380,7 @@ async function askModelStream(
 
     if (model.provider === "anthropic") {
       const { anthropic } = await import("@workspace/integrations-anthropic-ai");
-      const claudeMessages = [{ role: "user", content: prompt }];
-      console.log("CLAUDE PROMPT BEING SENT:", JSON.stringify({ system: systemPrompt, messages: claudeMessages }).substring(0, 500));
+      console.log("SENDING TO CLAUDE:", JSON.stringify(prompt).substring(0, 300));
       const stream = await anthropic.messages.create({
         model: model.routerModel,
         max_tokens: maxTokens,
