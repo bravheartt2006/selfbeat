@@ -156218,7 +156218,10 @@ var isMedicalQuestion = (question) => {
   return medicalKeywords.some((keyword) => normalized.includes(keyword));
 };
 var clampScore = (value) => Math.min(10, Math.max(1, value));
-var fallbackAnswer = (model, question) => {
+var fallbackAnswer = (model, question, lang = "English") => {
+  if (lang !== "English") {
+    return LANG_UNAVAILABLE[lang] ?? `[${lang} response unavailable \u2014 provider did not respond. Please try again.]`;
+  }
   const q = question.trim().replace(/\?$/, "");
   if (model.key === "chatgpt") {
     return `Regarding "${q}": the most accurate answer starts by separating what is well-established from what is disputed. The core facts are widely agreed upon by credible sources. Practical next steps depend on your context, but the general principle is to prioritize the most direct evidence available. Where specific numbers, dates, or names are relevant, they should be verified with an up-to-date authoritative source, since my training data has a cutoff and I may not have the latest details.`;
@@ -156252,17 +156255,21 @@ var fallbackAnswer = (model, question) => {
   }
   return `Analyzing "${q}" analytically: the question can be broken into its core claim, its underlying assumptions, and the evidence that supports or contradicts each. The logical structure of the strongest answer involves acknowledging what is definitively known, what is probabilistic, and what remains genuinely uncertain. From a reasoning standpoint, the most defensible position is the one that is falsifiable and internally consistent.`;
 };
-async function backupAnswer(question) {
+async function backupAnswer(question, lang = "English") {
   try {
     const { openai: openai4 } = await Promise.resolve().then(() => (init_src2(), src_exports));
+    const sysPrompt = langSystemPrompt(lang);
     const response = await openai4.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [{
-        role: "user",
-        content: `Answer this question clearly and accurately for a general audience. Keep the answer under 200 words.
+      messages: [
+        ...sysPrompt ? [{ role: "system", content: sysPrompt }] : [],
+        {
+          role: "user",
+          content: `${langUserPrefix(lang)}Answer this question clearly and accurately for a general audience. Keep the answer under 200 words.
 
-Question: ${question}`
-      }],
+${langBlock(lang, question)}`
+        }
+      ],
       max_completion_tokens: 500
     });
     return response.choices[0]?.message?.content?.trim() || "";
@@ -156555,13 +156562,13 @@ async function createComparison(question, mode, lang = "English") {
   const langSys = langSystemPrompt(lang);
   const answerPrompt = (model) => `${langUserPrefix(lang)}You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 220 words.
 
-Question: ${question}`;
+${langBlock(lang, question)}`;
   const firstRound = await Promise.all(
     models.map(async (model) => {
       if (mode === "mock") {
         return {
           model,
-          answer: fallbackAnswer(model, question),
+          answer: fallbackAnswer(model, question, lang),
           status: "fallback",
           error: "Mock mode selected."
         };
@@ -156571,18 +156578,18 @@ Question: ${question}`;
         if (raw) {
           return { model, answer: raw, status: "success" };
         }
-        const backup = await backupAnswer(question);
+        const backup = await backupAnswer(question, lang);
         return {
           model,
-          answer: backup || fallbackAnswer(model, question),
+          answer: backup || fallbackAnswer(model, question, lang),
           status: "fallback",
           error: "Provider returned an empty answer."
         };
       } catch (error40) {
-        const backup = await backupAnswer(question);
+        const backup = await backupAnswer(question, lang);
         return {
           model,
-          answer: backup || fallbackAnswer(model, question),
+          answer: backup || fallbackAnswer(model, question, lang),
           status: "fallback",
           error: error40 instanceof Error ? error40.message : "Provider unavailable."
         };
@@ -156733,9 +156740,28 @@ var LANG_NAME_TO_CODE = {
   Italian: "it",
   Spanish: "es"
 };
+var NATIVE_LANG_INSTRUCTION = {
+  Arabic: "\u0623\u062C\u0628 \u0628\u0627\u0644\u0644\u063A\u0629 \u0627\u0644\u0639\u0631\u0628\u064A\u0629 \u0641\u0642\u0637. \u0644\u0627 \u062A\u0633\u062A\u062E\u062F\u0645 \u0627\u0644\u0625\u0646\u062C\u0644\u064A\u0632\u064A\u0629 \u0639\u0644\u0649 \u0627\u0644\u0625\u0637\u0644\u0627\u0642.",
+  Chinese: "\u8BF7\u53EA\u7528\u4E2D\u6587\u56DE\u7B54\u3002\u4E0D\u8981\u4F7F\u7528\u4EFB\u4F55\u82F1\u6587\u3002",
+  Japanese: "\u65E5\u672C\u8A9E\u306E\u307F\u3067\u56DE\u7B54\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u82F1\u8A9E\u3092\u4F7F\u308F\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002",
+  Korean: "\uD55C\uAD6D\uC5B4\uB85C\uB9CC \uB2F5\uD574\uC8FC\uC138\uC694. \uC601\uC5B4\uB97C \uC0AC\uC6A9\uD558\uC9C0 \uB9C8\uC138\uC694.",
+  Hindi: "\u0915\u0947\u0935\u0932 \u0939\u093F\u0902\u0926\u0940 \u092E\u0947\u0902 \u0909\u0924\u094D\u0924\u0930 \u0926\u0947\u0902\u0964 \u0905\u0902\u0917\u094D\u0930\u0947\u091C\u0940 \u0915\u093E \u0909\u092A\u092F\u094B\u0917 \u0928 \u0915\u0930\u0947\u0902\u0964",
+  Greek: "\u0391\u03C0\u03B1\u03BD\u03C4\u03AE\u03C3\u03C4\u03B5 \u03BC\u03CC\u03BD\u03BF \u03C3\u03C4\u03B1 \u03B5\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC. \u039C\u03B7\u03BD \u03C7\u03C1\u03B7\u03C3\u03B9\u03BC\u03BF\u03C0\u03BF\u03B9\u03B5\u03AF\u03C4\u03B5 \u03B1\u03B3\u03B3\u03BB\u03B9\u03BA\u03AC.",
+  Russian: "\u041E\u0442\u0432\u0435\u0447\u0430\u0439\u0442\u0435 \u0442\u043E\u043B\u044C\u043A\u043E \u043D\u0430 \u0440\u0443\u0441\u0441\u043A\u043E\u043C \u044F\u0437\u044B\u043A\u0435. \u041D\u0435 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0439\u0442\u0435 \u0430\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u0438\u0439."
+};
+var LANG_UNAVAILABLE = {
+  Arabic: "\u0639\u0630\u0631\u064B\u0627\u060C \u0644\u0645 \u064A\u062A\u0645\u0643\u0646 \u0627\u0644\u0645\u0632\u0648\u062F \u0645\u0646 \u0627\u0644\u0627\u0633\u062A\u062C\u0627\u0628\u0629. \u064A\u0631\u062C\u0649 \u0627\u0644\u0645\u062D\u0627\u0648\u0644\u0629 \u0645\u0631\u0629 \u0623\u062E\u0631\u0649.",
+  Chinese: "\u62B1\u6B49\uFF0C\u63D0\u4F9B\u5546\u672A\u80FD\u54CD\u5E94\u3002\u8BF7\u7A0D\u540E\u91CD\u8BD5\u3002",
+  Japanese: "\u7533\u3057\u8A33\u3042\u308A\u307E\u305B\u3093\u304C\u3001\u30D7\u30ED\u30D0\u30A4\u30C0\u30FC\u304C\u5FDC\u7B54\u3057\u307E\u305B\u3093\u3067\u3057\u305F\u3002\u5F8C\u3067\u3082\u3046\u4E00\u5EA6\u304A\u8A66\u3057\u304F\u3060\u3055\u3044\u3002",
+  Korean: "\uC8C4\uC1A1\uD569\uB2C8\uB2E4. \uC81C\uACF5\uC5C5\uCCB4\uAC00 \uC751\uB2F5\uD558\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4. \uB098\uC911\uC5D0 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.",
+  Hindi: "\u0915\u094D\u0937\u092E\u093E \u0915\u0930\u0947\u0902, \u092A\u094D\u0930\u0926\u093E\u0924\u093E \u0928\u0947 \u091C\u0935\u093E\u092C \u0928\u0939\u0940\u0902 \u0926\u093F\u092F\u093E\u0964 \u0915\u0943\u092A\u092F\u093E \u092A\u0941\u0928\u0903 \u092A\u094D\u0930\u092F\u093E\u0938 \u0915\u0930\u0947\u0902\u0964",
+  Greek: "\u03A3\u03C5\u03B3\u03B3\u03BD\u03CE\u03BC\u03B7, \u03BF \u03C0\u03AC\u03C1\u03BF\u03C7\u03BF\u03C2 \u03B4\u03B5\u03BD \u03B1\u03BD\u03C4\u03B1\u03C0\u03BF\u03BA\u03C1\u03AF\u03B8\u03B7\u03BA\u03B5. \u03A0\u03B1\u03C1\u03B1\u03BA\u03B1\u03BB\u03CE \u03B4\u03BF\u03BA\u03B9\u03BC\u03AC\u03C3\u03C4\u03B5 \u03BE\u03B1\u03BD\u03AC.",
+  Russian: "\u0418\u0437\u0432\u0438\u043D\u0438\u0442\u0435, \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u043D\u0435 \u043E\u0442\u0432\u0435\u0442\u0438\u043B. \u041F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u043F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u043F\u043E\u0437\u0436\u0435."
+};
 var langSystemPrompt = (lang) => {
   if (lang === "English") return null;
-  return `You must respond 100% in ${lang}. Every single word must be in ${lang}. Do not use English at all. Not even one word in English.`;
+  const native = NATIVE_LANG_INSTRUCTION[lang] ?? "";
+  return `You must respond 100% in ${lang}. Every single word must be in ${lang}. Do not use English at all. Not even one word in English. ${native}`.trim();
 };
 var langUserPrefix = (lang) => {
   if (lang === "English") return "";
@@ -156745,6 +156771,7 @@ var langUserPrefix = (lang) => {
 };
 var langBlock = (lang, question) => {
   if (lang === "English") return `Question: ${question}`;
+  const native = NATIVE_LANG_INSTRUCTION[lang] ?? "";
   return [
     `###LANGUAGE INSTRUCTION - MANDATORY###`,
     `The user wrote their question in ${lang}.`,
@@ -156755,8 +156782,9 @@ var langBlock = (lang, question) => {
     ``,
     `Question: ${question}`,
     ``,
-    `[FINAL REMINDER: Respond ONLY in ${lang}. Your entire answer must be in ${lang}. Not a single English word.]`
-  ].join("\n");
+    `[FINAL REMINDER: Respond ONLY in ${lang}. Your entire answer must be in ${lang}. Not a single English word.]`,
+    native ? `[${native}]` : ""
+  ].filter(Boolean).join("\n");
 };
 var detectLang = (text2) => {
   if (/[\u0600-\u06FF]/.test(text2)) return "Arabic";
@@ -156942,15 +156970,15 @@ data: ${JSON.stringify(data)}
             status = "success";
             hasRealAnswer = true;
           } else {
-            const backup = await backupAnswer(question);
-            answer = backup || fallbackAnswer(model, question);
+            const backup = await backupAnswer(question, lang);
+            answer = backup || fallbackAnswer(model, question, lang);
             status = "fallback";
             hasRealAnswer = !!backup;
             error40 = "Provider returned empty answer.";
           }
         } catch (err) {
-          const backup = await backupAnswer(question);
-          answer = backup || fallbackAnswer(model, question);
+          const backup = await backupAnswer(question, lang);
+          answer = backup || fallbackAnswer(model, question, lang);
           status = "fallback";
           hasRealAnswer = !!backup;
           error40 = err instanceof Error ? err.message : "Provider unavailable.";
@@ -157123,9 +157151,9 @@ router5.post("/selfbeat/comparisons", async (req, res) => {
   console.log("LANGUAGE DEBUG - detected:", detected, "userLang:", userLang, "final lang:", lang, "question:", question.substring(0, 50));
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
   try {
-    const cached2 = await db.query.selfbeatComparisonsTable.findFirst({
+    const cached2 = lang === "English" ? await db.query.selfbeatComparisonsTable.findFirst({
       where: eq(selfbeatComparisonsTable.questionKey, questionKey)
-    });
+    }) : null;
     if (cached2) {
       const result2 = CreateSelfbeatComparisonResponse.parse({
         ...cached2.result,

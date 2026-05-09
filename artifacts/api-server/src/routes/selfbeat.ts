@@ -163,7 +163,10 @@ const isMedicalQuestion = (question: string) => {
 
 const clampScore = (value: number) => Math.min(10, Math.max(1, value));
 
-const fallbackAnswer = (model: ModelInfo, question: string) => {
+const fallbackAnswer = (model: ModelInfo, question: string, lang = "English") => {
+  if (lang !== "English") {
+    return LANG_UNAVAILABLE[lang] ?? `[${lang} response unavailable — provider did not respond. Please try again.]`;
+  }
   const q = question.trim().replace(/\?$/, "");
 
   if (model.key === "chatgpt") {
@@ -210,15 +213,19 @@ const fallbackAnswer = (model: ModelInfo, question: string) => {
 };
 
 // When a primary provider fails, use GPT-4o-mini to return a real answer
-async function backupAnswer(question: string): Promise<string> {
+async function backupAnswer(question: string, lang = "English"): Promise<string> {
   try {
     const { openai } = await import("@workspace/integrations-openai-ai-server");
+    const sysPrompt = langSystemPrompt(lang);
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [{
-        role: "user",
-        content: `Answer this question clearly and accurately for a general audience. Keep the answer under 200 words.\n\nQuestion: ${question}`,
-      }],
+      messages: [
+        ...(sysPrompt ? [{ role: "system" as const, content: sysPrompt }] : []),
+        {
+          role: "user" as const,
+          content: `${langUserPrefix(lang)}Answer this question clearly and accurately for a general audience. Keep the answer under 200 words.\n\n${langBlock(lang, question)}`,
+        },
+      ],
       max_completion_tokens: 500,
     });
     return response.choices[0]?.message?.content?.trim() || "";
@@ -581,14 +588,14 @@ async function createComparison(question: string, mode: "live" | "mock", lang = 
 
   const langSys = langSystemPrompt(lang);
   const answerPrompt = (model: ModelInfo) =>
-    `${langUserPrefix(lang)}You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 220 words.\n\nQuestion: ${question}`;
+    `${langUserPrefix(lang)}You are ${model.displayName} participating in Selfbeat, an AI comparison product. Answer this user question clearly and accurately for a general audience. Do not mention Selfbeat. Keep the answer under 220 words.\n\n${langBlock(lang, question)}`;
 
   const firstRound = await Promise.all(
     models.map(async (model) => {
       if (mode === "mock") {
         return {
           model,
-          answer: fallbackAnswer(model, question),
+          answer: fallbackAnswer(model, question, lang),
           status: "fallback" as const,
           error: "Mock mode selected.",
         };
@@ -599,18 +606,18 @@ async function createComparison(question: string, mode: "live" | "mock", lang = 
         if (raw) {
           return { model, answer: raw, status: "success" as const };
         }
-        const backup = await backupAnswer(question);
+        const backup = await backupAnswer(question, lang);
         return {
           model,
-          answer: backup || fallbackAnswer(model, question),
+          answer: backup || fallbackAnswer(model, question, lang),
           status: "fallback" as const,
           error: "Provider returned an empty answer.",
         };
       } catch (error) {
-        const backup = await backupAnswer(question);
+        const backup = await backupAnswer(question, lang);
         return {
           model,
-          answer: backup || fallbackAnswer(model, question),
+          answer: backup || fallbackAnswer(model, question, lang),
           status: "fallback" as const,
           error: error instanceof Error ? error.message : "Provider unavailable.",
         };
@@ -828,9 +835,32 @@ const LANG_NATIVE: Record<string, string> = {
  * System-role message injected for every non-English request.
  * Sent as the `system` field on all providers that support it.
  */
+/** Native-language instruction so models "think" in the target language */
+const NATIVE_LANG_INSTRUCTION: Record<string, string> = {
+  Arabic:  "أجب باللغة العربية فقط. لا تستخدم الإنجليزية على الإطلاق.",
+  Chinese: "请只用中文回答。不要使用任何英文。",
+  Japanese:"日本語のみで回答してください。英語を使わないでください。",
+  Korean:  "한국어로만 답해주세요. 영어를 사용하지 마세요.",
+  Hindi:   "केवल हिंदी में उत्तर दें। अंग्रेजी का उपयोग न करें।",
+  Greek:   "Απαντήστε μόνο στα ελληνικά. Μην χρησιμοποιείτε αγγλικά.",
+  Russian: "Отвечайте только на русском языке. Не используйте английский.",
+};
+
+/** Native-language "provider unavailable" fallback text */
+const LANG_UNAVAILABLE: Record<string, string> = {
+  Arabic:  "عذرًا، لم يتمكن المزود من الاستجابة. يرجى المحاولة مرة أخرى.",
+  Chinese: "抱歉，提供商未能响应。请稍后重试。",
+  Japanese:"申し訳ありませんが、プロバイダーが応答しませんでした。後でもう一度お試しください。",
+  Korean:  "죄송합니다. 제공업체가 응답하지 않았습니다. 나중에 다시 시도해 주세요.",
+  Hindi:   "क्षमा करें, प्रदाता ने जवाब नहीं दिया। कृपया पुनः प्रयास करें।",
+  Greek:   "Συγγνώμη, ο πάροχος δεν ανταποκρίθηκε. Παρακαλώ δοκιμάστε ξανά.",
+  Russian: "Извините, провайдер не ответил. Пожалуйста, попробуйте позже.",
+};
+
 const langSystemPrompt = (lang: string): string | null => {
   if (lang === "English") return null;
-  return `You must respond 100% in ${lang}. Every single word must be in ${lang}. Do not use English at all. Not even one word in English.`;
+  const native = NATIVE_LANG_INSTRUCTION[lang] ?? "";
+  return `You must respond 100% in ${lang}. Every single word must be in ${lang}. Do not use English at all. Not even one word in English. ${native}`.trim();
 };
 
 /**
@@ -845,6 +875,7 @@ const langUserPrefix = (lang: string): string => {
 
 const langBlock = (lang: string, question: string): string => {
   if (lang === "English") return `Question: ${question}`;
+  const native = NATIVE_LANG_INSTRUCTION[lang] ?? "";
   return [
     `###LANGUAGE INSTRUCTION - MANDATORY###`,
     `The user wrote their question in ${lang}.`,
@@ -856,7 +887,8 @@ const langBlock = (lang: string, question: string): string => {
     `Question: ${question}`,
     ``,
     `[FINAL REMINDER: Respond ONLY in ${lang}. Your entire answer must be in ${lang}. Not a single English word.]`,
-  ].join("\n");
+    native ? `[${native}]` : "",
+  ].filter(Boolean).join("\n");
 };
 
 /** @deprecated kept only for the one place that still appends to a sentence fragment */
@@ -1105,15 +1137,15 @@ router.post("/selfbeat/comparisons/stream", streamRateLimiter, async (req, res) 
             status = "success";
             hasRealAnswer = true;
           } else {
-            const backup = await backupAnswer(question);
-            answer = backup || fallbackAnswer(model, question);
+            const backup = await backupAnswer(question, lang);
+            answer = backup || fallbackAnswer(model, question, lang);
             status = "fallback";
             hasRealAnswer = !!backup;
             error = "Provider returned empty answer.";
           }
         } catch (err) {
-          const backup = await backupAnswer(question);
-          answer = backup || fallbackAnswer(model, question);
+          const backup = await backupAnswer(question, lang);
+          answer = backup || fallbackAnswer(model, question, lang);
           status = "fallback";
           hasRealAnswer = !!backup;
           error = err instanceof Error ? err.message : "Provider unavailable.";
@@ -1331,9 +1363,11 @@ router.post("/selfbeat/comparisons", async (req, res) => {
   const questionKey = `${normalizeQuestion(question)}::${lang}`;
 
   try {
-    const cached = await db.query.selfbeatComparisonsTable.findFirst({
-      where: eq(selfbeatComparisonsTable.questionKey, questionKey),
-    });
+    const cached = lang === "English"
+      ? await db.query.selfbeatComparisonsTable.findFirst({
+          where: eq(selfbeatComparisonsTable.questionKey, questionKey),
+        })
+      : null;
 
     if (cached) {
       const result = CreateSelfbeatComparisonResponse.parse({
