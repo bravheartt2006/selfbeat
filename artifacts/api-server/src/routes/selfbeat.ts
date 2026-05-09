@@ -94,9 +94,9 @@ type ModelResponse = {
 const router: IRouter = Router();
 
 const models: ModelInfo[] = [
-  { key: "chatgpt",    displayName: "ChatGPT",          color: "#10A37F", provider: "openai",     routerModel: "gpt-4o-mini" },
-  { key: "claude",     displayName: "Claude",            color: "#CC785C", provider: "anthropic",  routerModel: "claude-haiku-4-5" },
-  { key: "gemini",     displayName: "Gemini",            color: "#4285F4", provider: "openrouter", routerModel: "google/gemini-2.0-flash" },
+  { key: "chatgpt",    displayName: "ChatGPT",          color: "#10A37F", provider: "openrouter", routerModel: "openai/gpt-4o" },
+  { key: "claude",     displayName: "Claude",            color: "#CC785C", provider: "openrouter", routerModel: "anthropic/claude-3.5-sonnet" },
+  { key: "gemini",     displayName: "Gemini",            color: "#4285F4", provider: "openrouter", routerModel: "google/gemini-flash-1.5" },
   { key: "deepseek",   displayName: "DeepSeek",          color: "#7B68EE", provider: "openrouter", routerModel: "deepseek/deepseek-chat" },
   { key: "grok",       displayName: "Grok",              color: "#F97316", provider: "openrouter", routerModel: "x-ai/grok-3-mini" },
   { key: "mistral",    displayName: "Mistral Large",     color: "#EF4444", provider: "openrouter", routerModel: "mistralai/mistral-large" },
@@ -285,8 +285,10 @@ async function generatePhysicianNote(question: string, answers: string, lang = "
 // Replit integrations use localhost:1106 (only available inside Replit's container).
 // On Railway (or any external host) that proxy doesn't exist → all calls fail.
 // Solution: detect non-Replit and route everything through OpenRouter directly.
-const IS_REPLIT = !!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
-console.log(`[selfbeat] env: ${IS_REPLIT ? "Replit (integration proxy)" : "Railway (OpenRouter direct)"}`);
+// REPL_ID is injected by Replit's runtime and is never present on Railway or any external host.
+// Using it (not AI_INTEGRATIONS_* vars which users may accidentally copy to Railway) gives reliable detection.
+const IS_REPLIT = !!process.env.REPL_ID;
+console.log(`[selfbeat] env: ${IS_REPLIT ? "Replit (integration proxy)" : "Railway (OpenRouter direct)"} REPL_ID=${process.env.REPL_ID ?? "unset"}`);
 
 function getOpenRouterModelId(model: ModelInfo): string {
   if (model.provider === "openai") return `openai/${model.routerModel}`;
