@@ -156157,13 +156157,13 @@ var router5 = (0, import_express5.Router)();
 var models = [
   { key: "chatgpt", displayName: "ChatGPT", color: "#10A37F", provider: "openai", routerModel: "gpt-4o-mini" },
   { key: "claude", displayName: "Claude", color: "#CC785C", provider: "anthropic", routerModel: "claude-haiku-4-5" },
-  { key: "gemini", displayName: "Gemini", color: "#4285F4", provider: "gemini", routerModel: "gemini-2.0-flash" },
+  { key: "gemini", displayName: "Gemini", color: "#4285F4", provider: "gemini", routerModel: "gemini-2.0-flash-001" },
   { key: "deepseek", displayName: "DeepSeek", color: "#7B68EE", provider: "openrouter", routerModel: "deepseek/deepseek-chat" },
-  { key: "grok", displayName: "Grok", color: "#F97316", provider: "openrouter", routerModel: "x-ai/grok-2" },
+  { key: "grok", displayName: "Grok", color: "#F97316", provider: "openrouter", routerModel: "x-ai/grok-3-mini" },
   { key: "mistral", displayName: "Mistral Large", color: "#EF4444", provider: "openrouter", routerModel: "mistralai/mistral-large" },
   { key: "llama", displayName: "Llama 3.3 (Meta)", color: "#1877F2", provider: "openrouter", routerModel: "meta-llama/llama-3.3-70b-instruct" },
   { key: "perplexity", displayName: "Perplexity Sonar", color: "#06B6D4", provider: "openrouter", routerModel: "perplexity/sonar" },
-  { key: "cohere", displayName: "Cohere Command R+", color: "#22C55E", provider: "openrouter", routerModel: "cohere/command-r-plus" },
+  { key: "cohere", displayName: "Cohere Command R+", color: "#22C55E", provider: "openrouter", routerModel: "cohere/command-r-plus-08-2024" },
   { key: "qwen", displayName: "Qwen 2.5 (Alibaba)", color: "#A855F7", provider: "openrouter", routerModel: "qwen/qwen-2.5-72b-instruct" },
   { key: "copilot", displayName: "Microsoft Copilot", color: "#0078D4", provider: "openrouter", routerModel: "microsoft/phi-4" }
 ];
@@ -156317,7 +156317,7 @@ console.log(`[selfbeat] env: ${IS_REPLIT ? "Replit (integration proxy)" : "Railw
 function getOpenRouterModelId(model) {
   if (model.provider === "openai") return `openai/${model.routerModel}`;
   if (model.provider === "anthropic") return `anthropic/${model.routerModel}`;
-  if (model.provider === "gemini") return `google/${model.routerModel}`;
+  if (model.provider === "gemini") return "google/gemini-2.0-flash";
   return model.routerModel;
 }
 async function callOpenRouter(modelId, messages2, maxTokens, onToken) {
@@ -157177,11 +157177,9 @@ data: ${JSON.stringify(data)}
         message: r2.status === "success" ? "Live provider response used." : r2.error || "Fallback response used."
       }))
     };
-    if (lang === "English") {
-      try {
-        await db.insert(selfbeatComparisonsTable).values({ id, questionKey, question, result: fullResult });
-      } catch {
-      }
+    try {
+      await db.insert(selfbeatComparisonsTable).values({ id, questionKey, question, result: fullResult });
+    } catch {
     }
     if (userId) {
       db.insert(selfbeatUserHistoryTable).values({
