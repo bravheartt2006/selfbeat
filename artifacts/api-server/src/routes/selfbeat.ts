@@ -443,8 +443,8 @@ async function askModelStream(
       await new Promise((r) => setTimeout(r, 200));
     }
   }
-  // Final fallback: non-streaming
-  return askModel(model, prompt, maxTokens);
+  // Final fallback: non-streaming (must pass systemPrompt so language instructions survive)
+  return askModel(model, prompt, maxTokens, systemPrompt);
 }
 
 const extractScore = (text: string, fallback: number): number => {
@@ -854,6 +854,8 @@ const langBlock = (lang: string, question: string): string => {
     `###END INSTRUCTION###`,
     ``,
     `Question: ${question}`,
+    ``,
+    `[FINAL REMINDER: Respond ONLY in ${lang}. Your entire answer must be in ${lang}. Not a single English word.]`,
   ].join("\n");
 };
 

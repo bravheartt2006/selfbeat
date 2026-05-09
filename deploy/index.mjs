@@ -156458,7 +156458,7 @@ ${prompt}` : prompt;
       await new Promise((r2) => setTimeout(r2, 200));
     }
   }
-  return askModel(model, prompt, maxTokens);
+  return askModel(model, prompt, maxTokens, systemPrompt);
 }
 var extractScore = (text2, fallback) => {
   const patterns = [
@@ -156753,7 +156753,9 @@ var langBlock = (lang, question) => {
     `If you respond in English your answer will be disqualified.`,
     `###END INSTRUCTION###`,
     ``,
-    `Question: ${question}`
+    `Question: ${question}`,
+    ``,
+    `[FINAL REMINDER: Respond ONLY in ${lang}. Your entire answer must be in ${lang}. Not a single English word.]`
   ].join("\n");
 };
 var detectLang = (text2) => {
