@@ -156393,6 +156393,8 @@ async function askModelStream(model, prompt, onToken, maxTokens = 450, systemPro
     }
     if (model.provider === "anthropic") {
       const { anthropic: anthropic2 } = await Promise.resolve().then(() => (init_src3(), src_exports2));
+      const claudeMessages = [{ role: "user", content: prompt }];
+      console.log("CLAUDE PROMPT BEING SENT:", JSON.stringify({ system: systemPrompt, messages: claudeMessages }).substring(0, 500));
       const stream2 = await anthropic2.messages.create({
         model: model.routerModel,
         max_tokens: maxTokens,
